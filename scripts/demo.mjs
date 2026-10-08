@@ -13,13 +13,22 @@ const BASE = (process.argv[2] || "http://localhost:3000").replace(/\/$/, "");
 const FILE = process.argv[3];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function call(method, path, body) {
+async function call(method, path, body, timeoutMs = 120000) {
   const t0 = Date.now();
-  const res = await fetch(BASE + path, {
-    method,
-    headers: body ? { "content-type": "application/json" } : {},
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  process.stdout.write(`… ${method} ${path}\r`);
+  let res;
+  try {
+    res = await fetch(BASE + path, {
+      method,
+      headers: body ? { "content-type": "application/json" } : {},
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (e) {
+    console.error(`✗ ${method} ${path} → ${e.name === "TimeoutError" ? `no answer after ${timeoutMs / 1000}s` : e.message}`);
+    console.error(`  Is the server running at ${BASE}? Check the terminal where you ran "npm run dev" / "npm start" for errors.`);
+    process.exit(1);
+  }
   const text = await res.text();
   let data;
   try { data = JSON.parse(text); } catch { data = text; }
@@ -36,6 +45,7 @@ const show = (label, v) => console.log(`  ${label}:`, typeof v === "string" ? v 
 console.log(`\nClassCaption API test → ${BASE}\n`);
 
 // 0. Setup check
+console.log("(The first request can take up to a minute while Next.js compiles in dev mode.)");
 const health = await call("GET", "/api/health");
 show("health", health);
 if (health.database !== "ok") {

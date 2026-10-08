@@ -14,9 +14,10 @@ API for **ClassCaption**, an AI classroom companion with live translated caption
    npm install
    npm run dev                         # http://localhost:3000
    ```
-4. **Check.** Open http://localhost:3000/api/health. You want `"database": "ok"` and `gemini`/`groq` set to `true`.
+4. **Check.** Look at the port `npm run dev` prints (3000, or 3001 if 3000 is busy) and open http://localhost:PORT/api/health. You want `"database": "ok"` and `gemini`/`groq` set to `true`.
 5. **Test end to end** without any frontend:
    ```bash
+   node --env-file=.env.local scripts/check-env.mjs   # checks your keys without the server
    node scripts/demo.mjs                              # live class, reactions, notes, Q&A, subtitles
    node scripts/demo.mjs http://localhost:3000 lec.mp3   # also the recorded pipeline (≤25 MB audio)
    ```
