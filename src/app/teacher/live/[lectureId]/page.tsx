@@ -96,6 +96,7 @@ function TeacherLiveClassroomContent({
   const [isRecording, setIsRecording] = useState(false);
   const [micMuted, setMicMuted] = useState(false);
   const [micSupported, setMicSupported] = useState(true);
+  const [micError, setMicError] = useState("");
   const [wpm, setWpm] = useState(0);
   const [confusionCount, setConfusionCount] = useState(0);
   const [lastSpike, setLastSpike] = useState<{ offset_s: number; text: string | null } | null>(null);
@@ -232,8 +233,14 @@ function TeacherLiveClassroomContent({
   useEffect(() => {
     if (!cls || typeof window === "undefined") return;
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
+    if (!window.isSecureContext) {
       setMicSupported(false);
+      setMicError(`Mic needs localhost: open http://127.0.0.1:${window.location.port || "4000"}${window.location.pathname}`);
+      return;
+    }
+    if (!SpeechRecognition || (navigator as any).brave) {
+      setMicSupported(false);
+      setMicError("Live speech needs Google Chrome or Microsoft Edge");
       return;
     }
     let stopped = false;
@@ -262,27 +269,43 @@ function TeacherLiveClassroomContent({
         sendCaption(finalTranscript.trim());
       }
     };
+    let lastError = "";
+    recognition.onstart = () => {
+      setIsRecording(true);
+      setMicError("");
+    };
     recognition.onerror = (e: any) => {
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-        setMicSupported(false);
-        stopped = true;
+      lastError = e.error;
+      if (e.error === "no-speech" || e.error === "aborted") return;
+      const msg: Record<string, string> = {
+        "not-allowed": "Mic blocked: click the icon left of the address bar, allow Microphone, then press Unmute Mic",
+        "service-not-allowed": "Speech service blocked: use Google Chrome",
+        "audio-capture": "No microphone found: check Windows sound settings (Input device)",
+        network: "Speech service unreachable: Chrome speech recognition needs internet",
+      };
+      setMicError(msg[e.error] ?? `Mic error: ${e.error}`);
+      if (e.error === "not-allowed" || e.error === "service-not-allowed" || e.error === "audio-capture") {
+        mutedRef.current = true;
+        setMicMuted(true);
       }
     };
     // Chrome ends recognition after silence; keep it running until muted or ended.
     recognition.onend = () => {
       setIsRecording(false);
       if (!stopped && !mutedRef.current && !endedRef.current) {
-        try {
-          recognition.start();
-          setIsRecording(true);
-        } catch {}
+        setTimeout(() => {
+          if (stopped || mutedRef.current || endedRef.current) return;
+          try {
+            recognition.start();
+          } catch {}
+        }, lastError === "network" ? 2000 : 250);
+        lastError = "";
       }
     };
     recognitionRef.current = recognition;
     if (!mutedRef.current) {
       try {
         recognition.start();
-        setIsRecording(true);
       } catch {}
     }
     return () => {
@@ -302,8 +325,8 @@ function TeacherLiveClassroomContent({
     try {
       if (next) r.stop();
       else {
+        setMicError("");
         r.start();
-        setIsRecording(true);
       }
     } catch {}
   };
@@ -521,7 +544,9 @@ function TeacherLiveClassroomContent({
             >
               <span className={`w-2 h-2 rounded-full ${isRecording && !micMuted ? "bg-[#059669] animate-pulse" : "bg-[#DC2626]"}`} />
               <span>
-                {!micSupported
+                {micError
+                  ? micError
+                  : !micSupported
                   ? "Mic unavailable (use Chrome)"
                   : micMuted
                   ? "Mic Muted"
