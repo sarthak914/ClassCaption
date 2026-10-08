@@ -45,6 +45,7 @@ src/lib/lectures.ts          recorded pipeline, live→lecture, subtitles
 src/app/api/**               route handlers (see API_CONTRACT.md)
 scripts/demo.mjs             end-to-end API test
 scripts/listen.mjs           Realtime listener (acts as a student phone)
+scripts/board.mjs            board capture test: node scripts/board.mjs photo.jpg hi http://127.0.0.1:4000
 ```
 
 ## Known limits (prototype)

@@ -180,6 +180,24 @@ Response: `{ "answer": "...", "found_in_lecture": true, "citations": [ { "idx": 
 
 Seek the player to `citations[0].start_s`.
 
+### `POST /api/board` (Board capture)
+A photo of the whiteboard, blackboard or a slide becomes text, equations and spoken descriptions of diagrams. This is for blind and deaf students, or for anyone revising later.
+
+Send `multipart/form-data` with the fields `image` (a file, at most 4 MB), `lang` (optional, e.g. `hi`) and `context` (optional, e.g. the lecture title). From a phone: `<input type="file" accept="image/*" capture="environment">`.
+
+Or send JSON: `{ "imageBase64": "data:image/jpeg;base64,...", "lang": "hi" }` or `{ "imageUrl": "https://...", "lang": "hi" }`.
+
+Response:
+```json
+{ "provider": "gemini", "lang": "hi", "latency_ms": 4200,
+  "title": "Binary search",
+  "text": "## Binary Search\n- works on sorted array\n- $T(n) = T(n/2) + 1$",
+  "equations": [ { "latex": "T(n) = T(n/2) + 1 = O(\\log n)", "spoken": "T of n equals ..." } ],
+  "diagrams": [ { "description": "An array of 7 boxes ... arrow points to the middle box ..." } ],
+  "explanation": "..." }
+```
+Gemini Vision reads the image. If Gemini is busy or over quota, a Groq vision model (Llama 4) takes over. To read the result aloud, send `text`, `equations[].spoken` and `diagrams[].description` to `speechSynthesis`.
+
 ---
 
 ## Realtime (Supabase)

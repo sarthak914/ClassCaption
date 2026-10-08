@@ -67,3 +67,46 @@ export async function groqJSON<T>(prompt: string, timeoutMs = 15000): Promise<T>
   const data = await res.json();
   return parseJSON<T>(data.choices[0].message.content);
 }
+
+let visionModel: string | null = null;
+
+/** Picks a vision-capable chat model on Groq (Llama 4 Scout/Maverick at the time of writing). */
+async function groqVisionModel(): Promise<string> {
+  if (process.env.GROQ_VISION_MODEL) return process.env.GROQ_VISION_MODEL;
+  if (visionModel) return visionModel;
+  const res = await fetch(`${BASE}/models`, { headers: { authorization: `Bearer ${key()}` }, signal: AbortSignal.timeout(8000) });
+  if (!res.ok) throw new Error(`Groq models ${res.status}`);
+  const ids: string[] = ((await res.json()).data ?? []).map((m: { id: string }) => m.id);
+  visionModel =
+    ids.find((id) => /llama-4-scout/i.test(id)) ??
+    ids.find((id) => /llama-4-maverick/i.test(id)) ??
+    ids.find((id) => /vision|vl\b|-vl-/i.test(id)) ??
+    "meta-llama/llama-4-scout-17b-16e-instruct";
+  return visionModel;
+}
+
+/** JSON answer about an image (board capture fallback when Gemini is unavailable). */
+export async function groqVisionJSON<T>(prompt: string, image: { mime: string; base64: string }, timeoutMs = 45000): Promise<T> {
+  const res = await fetch(`${BASE}/chat/completions`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${key()}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      model: await groqVisionModel(),
+      temperature: 0.1,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: `data:${image.mime};base64,${image.base64}` } },
+          ],
+        },
+      ],
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!res.ok) throw new Error(`Groq vision ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  const data = await res.json();
+  return parseJSON<T>(data.choices[0].message.content);
+}

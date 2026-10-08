@@ -30,7 +30,7 @@ async function discoverModel(key: string): Promise<string> {
   return candidates[0].id;
 }
 
-type Part = { text: string } | { inline_data: { mime_type: string; data: string } };
+export type Part = { text: string } | { inline_data: { mime_type: string; data: string } };
 
 /** Calls Gemini and parses a JSON response. Thinking is disabled for speed. */
 export async function geminiJSON<T>(
