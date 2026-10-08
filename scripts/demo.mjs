@@ -89,8 +89,10 @@ show("teacher stats", { lost_recent: stats.lost_recent, wpm: stats.wpm, pace: st
 const late = await call("GET", `/api/class/${cls.id}?lang=mr`);
 show("late joiner in Marathi, first caption", late.captions[0]?.display);
 
-const exp = await call("POST", "/api/explain", { term: "time complexity", context: sentences[2], lang: "hi" });
-show("tap-to-explain", exp);
+try {
+  const exp = await call("POST", "/api/explain", { term: "time complexity", context: sentences[2], lang: "hi" });
+  show("tap-to-explain", exp);
+} catch { /* error already printed; keep going */ }
 
 const { lectureId } = await call("POST", `/api/class/${cls.id}/end`);
 show("saved as lecture", lectureId);

@@ -73,7 +73,7 @@ export async function captionsIn(cls: ClassRow, lang: string | null, opts: { sin
         }),
       );
     } catch (e) {
-      console.error("caption backfill failed", e);
+      console.error("caption backfill failed:", (e as Error).message);
     }
   }
   return caps.map((c) => ({ ...c, display: c.translations?.[lang] ?? c.text }));
