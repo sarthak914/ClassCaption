@@ -131,3 +131,6 @@ alter table public.lectures add column if not exists classroom_id uuid reference
 alter table public.reactions add column if not exists student_name text;
 alter table public.reactions drop constraint if exists reactions_kind_check;
 alter table public.reactions add constraint reactions_kind_check check (kind in ('lost','question','speak'));
+
+-- Make the API see the new tables/columns right away.
+notify pgrst, 'reload schema';
