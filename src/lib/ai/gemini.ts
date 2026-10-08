@@ -56,6 +56,11 @@ export async function geminiJSON<T>(
   };
 
   let res = await call(geminiModel());
+  if (res.status === 503 || res.status === 429) {
+    // "high demand" / rate limit: one quick retry before the translator chain falls back
+    await new Promise((r) => setTimeout(r, 700));
+    res = await call(geminiModel());
+  }
   if (res.status === 404 && !resolvedModel) {
     resolvedModel = await discoverModel(key);
     console.warn(`Gemini model ${process.env.GEMINI_MODEL || "gemini-flash-latest"} unavailable, using ${resolvedModel}`);

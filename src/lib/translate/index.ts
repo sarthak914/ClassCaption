@@ -51,24 +51,25 @@ const groq: Translator = {
 };
 
 /** Keyless public Google Translate endpoint. Last-resort fallback so a demo never shows a blank. */
+async function googleOne(q: string, sl: string, tl: string) {
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl || "auto"}&tl=${tl}&dt=t&q=${encodeURIComponent(q)}`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+  if (!res.ok) throw new Error(`google ${res.status}`);
+  const data = await res.json();
+  return (data[0] as [string][]).map((x) => x[0]).join("");
+}
+
 const google: Translator = {
   name: "google",
   available: () => true,
   async translate(texts, targets, source) {
     const result: Record<string, string[]> = {};
-    await Promise.all(
-      targets.map(async (tl) => {
-        result[tl] = await Promise.all(
-          texts.map(async (q) => {
-            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${source || "auto"}&tl=${tl}&dt=t&q=${encodeURIComponent(q)}`;
-            const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
-            if (!res.ok) throw new Error(`google ${res.status}`);
-            const data = await res.json();
-            return (data[0] as [string][]).map((x) => x[0]).join("");
-          }),
-        );
-      }),
-    );
+    // One request per language (texts joined by newlines) to stay under its rate limit.
+    for (const tl of targets) {
+      const joined = await googleOne(texts.join("\n"), source, tl);
+      const parts = joined.split("\n").map((p) => p.trim());
+      result[tl] = parts.length === texts.length ? parts : await Promise.all(texts.map((q) => googleOne(q, source, tl)));
+    }
     return result;
   },
 };

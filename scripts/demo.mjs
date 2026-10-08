@@ -40,7 +40,7 @@ async function call(method, path, body, timeoutMs = 120000) {
   console.log(`✓ ${method} ${path} (${ms} ms)`);
   return data;
 }
-const show = (label, v) => console.log(`  ${label}:`, typeof v === "string" ? v : JSON.stringify(v, null, 2).replace(/\n/g, "\n  "));
+const show = (label, v) => console.log(`  ${label}:`, typeof v === "string" ? v : (JSON.stringify(v, null, 2) ?? "(none)").replace(/\n/g, "\n  "));
 
 console.log(`\nClassCaption API test → ${BASE}\n`);
 
@@ -71,7 +71,7 @@ const sentences = [
 let seq = 0;
 for (const text of sentences) {
   const r = await call("POST", "/api/captions", { classId: cls.id, text, seq: seq++ });
-  show(`  [${r.provider}, ${r.latency_ms} ms] hi`, r.caption.translations.hi);
+  show(`  [${r.provider}, ${r.latency_ms} ms] hi`, r.caption.translations.hi ?? "(not translated)");
   if (r.translateError) show("translateError", r.translateError);
   await sleep(1200);
 }
