@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ClassCaption backend
 
-## Getting Started
+API for **ClassCaption**, an AI classroom companion with live translated captions, an "I'm lost" confusion meter, a pace coach, and recorded lectures with subtitles, notes, a quiz and Ask-the-lecture, in Indian languages.
 
-First, run the development server:
+- **Stack:** Next.js API routes (Vercel), Supabase (Postgres, Realtime, Storage), Groq Whisper large-v3, Gemini Flash. Translation goes through a provider chain (Bhashini → Gemini → Groq Llama → Google fallback).
+- **Endpoint reference for the frontend:** [`API_CONTRACT.md`](API_CONTRACT.md)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Setup (about 10 minutes)
+
+1. **Database.** In Supabase, open SQL Editor, paste all of [`supabase/schema.sql`](supabase/schema.sql), and click Run. This creates the tables, read-only RLS policies, Realtime publication and the `lectures` storage bucket.
+2. **Keys.** Copy `.env.example` to `.env.local` and fill it in. On Vercel, add the same variables under Project → Settings → Environment Variables. Never commit `.env.local`.
+3. **Run.**
+   ```bash
+   npm install
+   npm run dev                         # http://localhost:3000
+   ```
+4. **Check.** Open http://localhost:3000/api/health. You want `"database": "ok"` and `gemini`/`groq` set to `true`.
+5. **Test end to end** without any frontend:
+   ```bash
+   node scripts/demo.mjs                              # live class, reactions, notes, Q&A, subtitles
+   node scripts/demo.mjs http://localhost:3000 lec.mp3   # also the recorded pipeline (≤25 MB audio)
+   ```
+   In a second terminal, watch captions arrive over Realtime the way a student phone would:
+   ```bash
+   node --env-file=.env.local scripts/listen.mjs <JOIN_CODE> hi
+   ```
+
+## Deploy
+
+Push to GitHub, import the repo in Vercel, add the environment variables, then deploy. Run `node scripts/demo.mjs https://<app>.vercel.app` against the deployment.
+
+## Translation providers
+
+`TRANSLATION_PROVIDERS` sets the order (default `bhashini,gemini,groq,google`). A provider is skipped when its keys are missing, and each one falls back to the next on error or timeout, so captions keep flowing even if a free-tier rate limit is hit. When the Bhashini keys arrive, set `BHASHINI_USER_ID` and `BHASHINI_API_KEY` and it becomes the first choice automatically. The code is in `src/lib/translate/`.
+
+## Layout
+
+```
+supabase/schema.sql          tables, RLS, realtime, storage bucket
+src/lib/translate/           swappable translators (bhashini.ts, index.ts)
+src/lib/ai/                  gemini.ts, groq.ts, lecture.ts (notes, ask, explain prompts)
+src/lib/classes.ts           live class helpers
+src/lib/lectures.ts          recorded pipeline, live→lecture, subtitles
+src/app/api/**               route handlers (see API_CONTRACT.md)
+scripts/demo.mjs             end-to-end API test
+scripts/listen.mjs           Realtime listener (acts as a student phone)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Known limits (prototype)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- No login yet. Anyone with a join code can join, and anyone with the URL can call the API.
+- Uploads are capped at 25 MB (Groq free tier). Longer lectures need audio extraction or chunking.
+- Free-tier rate limits on Gemini and Groq apply. The translator chain falls back automatically.
