@@ -27,9 +27,18 @@ export function baseLang(bcp47: string) {
   return bcp47.split("-")[0].toLowerCase();
 }
 
+/** en-IN speech is usually Hinglish, so even English readers get a cleaned-up translation. */
+export function sourceIsMixed(sourceLang: string) {
+  return sourceLang === "en-IN";
+}
+
 /** Teacher speech languages supported by Chrome's Web Speech API. */
 export const SPEECH_LANGS = [
   { code: "en-IN", label: "English (India) / Hinglish" },
   { code: "hi-IN", label: "Hindi" },
   { code: "en-US", label: "English (US)" },
 ];
+
+/** UI aliases used by the screens. */
+export type LanguageCode = string;
+export const TARGET_LANGUAGES = LANGUAGES;

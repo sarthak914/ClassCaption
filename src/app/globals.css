@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+:root {
+  --font-display: var(--font-plus-jakarta-sans), system-ui, sans-serif;
+  --font-body: var(--font-inter), system-ui, sans-serif;
+
+  /* Stitch Design System Colors */
+  --bg-canvas: #F8FAFC;
+  --surface-card: #FFFFFF;
+  --surface-muted: #F1F5F9;
+  --border-subtle: #E2E8F0;
+  --border-medium: #CBD5E1;
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #64748B;
+
+  /* Brand Accents */
+  --primary-navy: #1E3A8A;
+  --primary-deep: #00236F;
+  --primary-light: #90A8FF;
+  --primary-fixed: #DCE1FF;
+  --emerald-live: #059669;
+  --emerald-bg: #ECFDF5;
+  --amber-warning: #D97706;
+  --amber-bg: #FEF3C7;
+  --crimson-alert: #DC2626;
+
+  /* Dark Viewport / High Contrast Stage */
+  --caption-stage-bg: #0B0F19;
+  --caption-stage-text: #F8FAFC;
+  --caption-stage-entity: #60A5FA;
+  --caption-stage-gloss: #34D399;
+}
+
+@theme {
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+  --color-canvas: #F8FAFC;
+  --color-card: #FFFFFF;
+  --color-surface-muted: #F1F5F9;
+  --color-border-subtle: #E2E8F0;
+  --color-border-medium: #CBD5E1;
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #475569;
+  --color-primary-navy: #1E3A8A;
+  --color-primary-deep: #00236F;
+  --color-emerald-live: #059669;
+  --color-amber-warning: #D97706;
+  --color-stage-bg: #0B0F19;
+}
+
+body {
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6, .font-heading {
+  font-family: var(--font-display);
+}
+
+/* Custom Scrollbar for mobile/desktop language pills and caption feeds */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Subtle glowing animations */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.92); }
+}
+
+.animate-live-pulse {
+  animation: live-pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes soundwave {
+  0%, 100% { height: 6px; }
+  50% { height: 18px; }
+}
+
+.animate-soundwave-1 { animation: soundwave 1.1s ease-in-out infinite; }
+.animate-soundwave-2 { animation: soundwave 0.8s ease-in-out infinite 0.2s; }
+.animate-soundwave-3 { animation: soundwave 1.4s ease-in-out infinite 0.4s; }
+
+/* Interactive focus ring for WCAG AAA standards */
+*:focus-visible {
+  outline: 2px solid #1E3A8A !important;
+  outline-offset: 2px !important;
+}

@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { body, HttpError, need, ok, route } from "@/lib/http";
 import { getClass } from "@/lib/classes";
-import { baseLang } from "@/lib/languages";
+import { baseLang, sourceIsMixed } from "@/lib/languages";
 import { translate } from "@/lib/translate";
 
 /**
@@ -28,7 +28,8 @@ export const POST = route(async (req: Request) => {
 
   const src = baseLang(cls.source_lang);
   // Hindi is always included so the demo works before any student has joined.
-  const targets = [...new Set([...(b.targets ?? cls.languages), "hi"])].filter((l) => l !== src);
+  // en-IN speech is often Hinglish, so English stays a real target (clean English) in that case.
+  const targets = [...new Set([...(b.targets ?? cls.languages), "hi"])].filter((l) => l !== src || sourceIsMixed(cls.source_lang));
   let translations: Record<string, string> = {};
   let provider = "none";
   let translateError: string | undefined;

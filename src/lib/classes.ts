@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "./supabase/server";
 import { HttpError } from "./http";
-import { baseLang } from "./languages";
+import { baseLang, sourceIsMixed } from "./languages";
 import { translate } from "./translate";
 
 export type ClassRow = {
@@ -102,7 +102,7 @@ export async function captionsIn(cls: ClassRow, lang: string | null, opts: { sin
   if (error) throw error;
   const caps = (data as CaptionRow[]).reverse();
   const src = baseLang(cls.source_lang);
-  if (!lang || lang === src) return caps.map((c) => ({ ...c, display: c.text }));
+  if (!lang || (lang === src && !sourceIsMixed(cls.source_lang))) return caps.map((c) => ({ ...c, display: c.text }));
 
   const missing = caps.filter((c) => !c.translations?.[lang]);
   if (missing.length) {
