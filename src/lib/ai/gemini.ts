@@ -35,7 +35,7 @@ type Part = { text: string } | { inline_data: { mime_type: string; data: string 
 /** Calls Gemini and parses a JSON response. Thinking is disabled for speed. */
 export async function geminiJSON<T>(
   prompt: string | Part[],
-  opts: { timeoutMs?: number; system?: string } = {},
+  opts: { timeoutMs?: number; system?: string; retries?: number } = {},
 ): Promise<T> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("GEMINI_API_KEY not set");
@@ -56,9 +56,12 @@ export async function geminiJSON<T>(
   };
 
   let res = await call(geminiModel());
-  if (res.status === 503 || res.status === 429) {
-    // "high demand" / rate limit: one quick retry before the translator chain falls back
-    await new Promise((r) => setTimeout(r, 700));
+  // "high demand" (503) / rate limit (429): back off and retry. Live captions pass retries: 0
+  // so the translator chain can fall back to Groq immediately instead.
+  const delays = [1000, 3000, 6000].slice(0, opts.retries ?? 2);
+  for (const d of delays) {
+    if (res.status !== 503 && res.status !== 429) break;
+    await new Promise((r) => setTimeout(r, d));
     res = await call(geminiModel());
   }
   if (res.status === 404 && !resolvedModel) {

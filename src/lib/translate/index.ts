@@ -34,8 +34,10 @@ const gemini: Translator = {
   name: "gemini",
   available: () => !!process.env.GEMINI_API_KEY,
   async translate(texts, targets, source) {
+    const live = texts.length <= 5;
     const out = await geminiJSON<Record<string, unknown>>(llmPrompt(texts, targets, source), {
-      timeoutMs: texts.length > 5 ? 45000 : 8000,
+      timeoutMs: live ? 5000 : 45000,
+      retries: live ? 0 : 2, // live captions: fail fast and let Groq answer
     });
     return checkShape(out, texts, targets);
   },
@@ -87,7 +89,7 @@ const bhashini: Translator = {
 const ALL: Record<string, Translator> = { bhashini, gemini, groq, google };
 
 function chain(): Translator[] {
-  const order = (process.env.TRANSLATION_PROVIDERS || "bhashini,gemini,groq,google")
+  const order = (process.env.TRANSLATION_PROVIDERS || "bhashini,groq,gemini,google")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);

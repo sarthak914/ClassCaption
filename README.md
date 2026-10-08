@@ -32,7 +32,7 @@ Push to GitHub, import the repo in Vercel, add the environment variables, then d
 
 ## Translation providers
 
-`TRANSLATION_PROVIDERS` sets the order (default `bhashini,gemini,groq,google`). A provider is skipped when its keys are missing, and each one falls back to the next on error or timeout, so captions keep flowing even if a free-tier rate limit is hit. When the Bhashini keys arrive, set `BHASHINI_USER_ID` and `BHASHINI_API_KEY` and it becomes the first choice automatically. The code is in `src/lib/translate/`.
+`TRANSLATION_PROVIDERS` sets the order (default `bhashini,groq,gemini,google`: Groq is fastest for live captions). A provider is skipped when its keys are missing, and each one falls back to the next on error or timeout, so captions keep flowing even if a free-tier rate limit is hit. When the Bhashini keys arrive, set `BHASHINI_USER_ID` and `BHASHINI_API_KEY` and it becomes the first choice automatically. The code is in `src/lib/translate/`.
 
 ## Layout
 

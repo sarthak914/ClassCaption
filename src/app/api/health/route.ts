@@ -34,6 +34,6 @@ export async function GET() {
     env,
     database,
     gemini_model: geminiModel(),
-    translation_providers: process.env.TRANSLATION_PROVIDERS || "bhashini,gemini,groq,google",
+    translation_providers: process.env.TRANSLATION_PROVIDERS || "bhashini,groq,gemini,google",
   });
 }

@@ -36,7 +36,7 @@ export const POST = route(async (req: Request, { params }: Ctx<{ id: string }>) 
       lang: b.lang ?? null,
       text_en: text_en ?? (b.kind === "question" ? b.text!.trim() : null),
       caption_seq: typeof b.captionSeq === "number" ? b.captionSeq : null,
-      offset_s: (Date.now() - new Date(cls.started_at).getTime()) / 1000,
+      offset_s: Math.max(0, (Date.now() - new Date(cls.started_at).getTime()) / 1000),
     })
     .select("*")
     .single();

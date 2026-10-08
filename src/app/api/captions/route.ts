@@ -24,7 +24,7 @@ export const POST = route(async (req: Request) => {
     const { data } = await db.from("captions").select("seq").eq("class_id", classId).order("seq", { ascending: false }).limit(1);
     seq = (data?.[0]?.seq ?? -1) + 1;
   }
-  const offset_s = typeof b.offsetS === "number" ? b.offsetS : (Date.now() - new Date(cls.started_at).getTime()) / 1000;
+  const offset_s = Math.max(0, typeof b.offsetS === "number" ? b.offsetS : (Date.now() - new Date(cls.started_at).getTime()) / 1000);
 
   const src = baseLang(cls.source_lang);
   // Hindi is always included so the demo works before any student has joined.

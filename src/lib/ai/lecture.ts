@@ -1,5 +1,5 @@
 import "server-only";
-import { geminiJSON } from "./gemini";
+import { llmJSON } from "./llm";
 import { langName } from "../languages";
 
 export type Seg = { idx: number; start_s: number; end_s: number; text: string };
@@ -22,7 +22,7 @@ export function transcriptText(segs: Seg[], maxChars = 300_000) {
 }
 
 export async function generateNotes(segs: Seg[], lang = "en"): Promise<Notes> {
-  return geminiJSON<Notes>(
+  return llmJSON<Notes>(
     `You are an assistant that turns an Indian college lecture transcript into accessible revision notes.
 Write everything in ${langName(lang)} (${lang}), in simple language. Keep technical terms in English in brackets after the ${langName(lang)} word when helpful.
 The transcript comes from speech recognition (may be English, Hindi or Hinglish) with lines "[index @ seconds m:ss] text".
@@ -38,7 +38,7 @@ Return JSON:
 
 TRANSCRIPT:
 ${transcriptText(segs)}`,
-    { timeoutMs: 90000 },
+    90000,
   );
 }
 
@@ -49,7 +49,7 @@ export type Answer = {
 };
 
 export async function askLecture(segs: Seg[], question: string, lang = "en"): Promise<Answer> {
-  return geminiJSON<Answer>(
+  return llmJSON<Answer>(
     `A student asks a question about a lecture. Answer ONLY from the transcript below.
 The question may be in any Indian language or Hinglish. Answer in ${langName(lang)} (${lang}), simply, in 2-5 sentences.
 Cite the transcript lines that support the answer so the student can jump to that moment.
@@ -61,18 +61,18 @@ QUESTION: ${question}
 
 TRANSCRIPT:
 ${transcriptText(segs)}`,
-    { timeoutMs: 45000 },
+    45000,
   );
 }
 
 export type Explanation = { term: string; explanation: string; example: string };
 
 export async function explainTerm(term: string, context: string, lang = "en"): Promise<Explanation> {
-  return geminiJSON<Explanation>(
+  return llmJSON<Explanation>(
     `A college student tapped a hard word in a live lecture caption. Explain it in ${langName(lang)} (${lang}) for a first-year student.
 Term: "${term}"
 Caption it appeared in: "${context}"
 Return JSON: {"term": "the term as written", "explanation": "1-2 simple sentences, meaning in this context", "example": "one short everyday example"}`,
-    { timeoutMs: 15000 },
+    15000,
   );
 }

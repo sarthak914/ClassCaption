@@ -162,7 +162,7 @@ export async function segmentsIn(lectureId: string, lang: string, sourceLang = "
 
 export function toVTT(cues: { start_s: number; end_s: number; out: string }[]) {
   const ts = (s: number) => {
-    const ms = Math.round(s * 1000);
+    const ms = Math.max(0, Math.round(s * 1000));
     const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000), sec = Math.floor((ms % 60000) / 1000);
     return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}.${String(ms % 1000).padStart(3, "0")}`;
   };
