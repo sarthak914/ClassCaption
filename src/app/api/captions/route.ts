@@ -34,7 +34,7 @@ export const POST = route(async (req: Request) => {
   let provider = "none";
   let translateError: string | undefined;
   try {
-    const r = await translate([text], targets, src);
+    const r = await translate([text], targets, src, { keepSource: sourceIsMixed(cls.source_lang) });
     provider = r.provider;
     translations = Object.fromEntries(Object.entries(r.result).map(([k, v]) => [k, v[0]]));
   } catch (e) {

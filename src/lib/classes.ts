@@ -107,7 +107,7 @@ export async function captionsIn(cls: ClassRow, lang: string | null, opts: { sin
   const missing = caps.filter((c) => !c.translations?.[lang]);
   if (missing.length) {
     try {
-      const { result } = await translate(missing.map((c) => c.text), [lang], src);
+      const { result } = await translate(missing.map((c) => c.text), [lang], src, { keepSource: sourceIsMixed(cls.source_lang) });
       await Promise.all(
         missing.map((c, i) => {
           c.translations = { ...(c.translations ?? {}), [lang]: result[lang][i] };

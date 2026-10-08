@@ -101,8 +101,10 @@ export async function translate(
   texts: string[],
   targets: string[],
   source = "en",
+  opts: { keepSource?: boolean } = {},
 ): Promise<{ provider: string; result: Record<string, string[]> }> {
-  const tgts = [...new Set(targets)].filter((t) => t && t !== source);
+  // keepSource: Hinglish tagged as "en" still needs a clean English version.
+  const tgts = [...new Set(targets)].filter((t) => t && (opts.keepSource || t !== source));
   if (!texts.length || !tgts.length) return { provider: "none", result: {} };
   const errors: string[] = [];
   for (const t of chain()) {

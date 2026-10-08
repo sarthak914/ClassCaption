@@ -327,6 +327,21 @@ function TeacherLiveClassroomContent({
           return next;
         });
       })
+      // Mirror every caption (including ones sent from another device) in the feeds.
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "captions", filter: `class_id=eq.${cls.id}` },
+        ({ new: c }: { new: { seq: number; text: string; translations: Record<string, string> } }) => {
+          seqRef.current = Math.max(seqRef.current, c.seq + 1);
+          setTeacherAudio(c.text);
+          const tr = c.translations ?? {};
+          setFeeds((prev) => {
+            const next = { ...prev };
+            for (const l of FEED_LANGS) next[l] = { ...prev[l], text: tr[l] || (l === "en" ? c.text : prev[l].text) };
+            return next;
+          });
+        },
+      )
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "reactions", filter: `class_id=eq.${cls.id}` },
