@@ -65,14 +65,14 @@ ${transcriptText(segs)}`,
   );
 }
 
-export type Explanation = { term: string; explanation: string; example: string };
+export type Explanation = { term: string; translated_term: string; explanation: string; example: string };
 
 export async function explainTerm(term: string, context: string, lang = "en"): Promise<Explanation> {
   return llmJSON<Explanation>(
     `A college student tapped a hard word in a live lecture caption. Explain it in ${langName(lang)} (${lang}) for a first-year student.
 Term: "${term}"
 Caption it appeared in: "${context}"
-Return JSON: {"term": "the term as written", "explanation": "1-2 simple sentences, meaning in this context", "example": "one short everyday example"}`,
+Return JSON: {"term": "the term as written", "translated_term": "the term written in ${langName(lang)} script (same as term if English)", "explanation": "1-2 simple sentences, meaning in this context", "example": "one short everyday example"}`,
     15000,
   );
 }

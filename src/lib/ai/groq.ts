@@ -70,7 +70,7 @@ export async function groqJSON<T>(prompt: string, timeoutMs = 15000): Promise<T>
 
 let visionModel: string | null = null;
 
-/** Picks a vision-capable chat model on Groq (Llama 4 Scout/Maverick at the time of writing). */
+/** Picks a vision-capable chat model on Groq (Llama 4 Scout/Maverick, else a Qwen multimodal model). */
 async function groqVisionModel(): Promise<string> {
   if (process.env.GROQ_VISION_MODEL) return process.env.GROQ_VISION_MODEL;
   if (visionModel) return visionModel;
@@ -81,6 +81,7 @@ async function groqVisionModel(): Promise<string> {
     ids.find((id) => /llama-4-scout/i.test(id)) ??
     ids.find((id) => /llama-4-maverick/i.test(id)) ??
     ids.find((id) => /vision|vl\b|-vl-/i.test(id)) ??
+    ids.find((id) => /qwen/i.test(id)) ??
     "meta-llama/llama-4-scout-17b-16e-instruct";
   return visionModel;
 }

@@ -8,11 +8,19 @@ import { HttpError } from "./http";
 
 export type SegmentRow = Seg & { translations: Record<string, string> };
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function getLecture(id: string) {
-  const { data, error } = await supabaseAdmin().from("lectures").select("*").eq("id", id).maybeSingle();
+  if (!UUID.test(id)) throw new HttpError(404, "Lecture not found");
+  const db = supabaseAdmin();
+  const { data, error } = await db.from("lectures").select("*, classroom:classrooms(*)").eq("id", id).maybeSingle();
   if (error) throw error;
-  if (!data) throw new HttpError(404, "Lecture not found");
-  return data;
+  if (data) return data;
+  // Also accept a live class id: an ended class points at its saved lecture.
+  const { data: cls } = await db.from("classes").select("lecture_id,status").eq("id", id).maybeSingle();
+  if (cls?.lecture_id) return getLecture(cls.lecture_id);
+  if (cls) throw new HttpError(409, cls.status === "live" ? "This class is still live" : "Lecture is still being saved");
+  throw new HttpError(404, "Lecture not found");
 }
 
 export async function getSegments(lectureId: string): Promise<SegmentRow[]> {
@@ -104,6 +112,7 @@ export async function saveClassAsLecture(classId: string) {
     .from("lectures")
     .insert({
       class_id: classId,
+      classroom_id: cls.classroom_id ?? null,
       title: cls.title,
       source: "live",
       status: captions.length ? "summarising" : "ready",
@@ -144,8 +153,9 @@ export async function finishLiveLecture(lectureId: string) {
 }
 
 /** Notes in a language, generated on first request and cached in lectures.notes. */
-export async function notesIn(lectureId: string, lang: string): Promise<Notes> {
-  const lec = await getLecture(lectureId);
+export async function notesIn(id: string, lang: string): Promise<Notes> {
+  const lec = await getLecture(id);
+  const lectureId: string = lec.id;
   if (lec.notes?.[lang]) return lec.notes[lang];
   const segs = await getSegments(lectureId);
   if (!segs.length) throw new HttpError(409, `Lecture is not ready yet (status: ${lec.status})`);
@@ -156,7 +166,8 @@ export async function notesIn(lectureId: string, lang: string): Promise<Notes> {
 }
 
 /** Segments with `lang` filled in, translating and caching any that are missing. */
-export async function segmentsIn(lectureId: string, lang: string, sourceLang = "en") {
+export async function segmentsIn(id: string, lang: string, sourceLang = "en") {
+  const lectureId: string = (await getLecture(id)).id;
   const segs = await getSegments(lectureId);
   if (lang === sourceLang) return segs.map((s) => ({ ...s, out: s.text }));
   const missing = segs.filter((s) => !s.translations?.[lang]);

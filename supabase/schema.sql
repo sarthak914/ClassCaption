@@ -106,3 +106,28 @@ on conflict (id) do nothing;
 
 -- If you ran an older copy of this file, this brings the classes table up to date.
 alter table public.classes add column if not exists languages text[] not null default '{}';
+
+-- ---------------------------------------------------------------------------
+-- v2: classrooms (persistent courses with a PIN) for the frontend screens.
+-- Each live class belongs to a classroom; students can join with the classroom PIN.
+create table if not exists public.classrooms (
+  id                      uuid primary key default gen_random_uuid(),
+  name                    text not null,
+  subject_code            text,
+  room                    text,
+  description             text,
+  join_code               text not null unique,
+  default_source_language text not null default 'en-IN',
+  created_at              timestamptz not null default now()
+);
+alter table public.classrooms enable row level security;
+drop policy if exists "public read" on public.classrooms;
+create policy "public read" on public.classrooms for select using (true);
+
+alter table public.classes  add column if not exists classroom_id uuid references public.classrooms(id) on delete set null;
+alter table public.lectures add column if not exists classroom_id uuid references public.classrooms(id) on delete set null;
+
+-- Reactions: "speak" = Speak-for-me request read aloud by the teacher's device; optional student name.
+alter table public.reactions add column if not exists student_name text;
+alter table public.reactions drop constraint if exists reactions_kind_check;
+alter table public.reactions add constraint reactions_kind_check check (kind in ('lost','question','speak'));
