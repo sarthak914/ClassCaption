@@ -123,10 +123,10 @@ Response: `{ "provider": "gemini", "latency_ms": 700, "translations": { "hi": ["
 3. `POST /api/lectures/:id/process` runs Groq Whisper, then Gemini notes. Progress is written to the lecture row.
 4. The student page reads `GET /api/lectures/:id`, `/subtitles`, `/notes` and `/ask`.
 
-File limit: **25 MB** (Groq free tier). Send compressed audio (mp3/m4a/webm/ogg). A short mp4 also works. Extracting audio in the browser with ffmpeg.wasm (mono, 16 kHz, about 32 kbps, roughly 14 MB per hour) keeps long lectures under the limit.
+**Video or audio both work** (mp4, mov, mkv, webm, mp3, m4a, wav, ...). The server extracts the audio with ffmpeg (16 kHz mono, about 14 MB per hour) and splits it into 20-minute chunks, so long lectures stay under Groq's 25 MB per-request limit. The upload itself is capped by Supabase Storage, which allows 50 MB per file on the free plan. For a long recording, upload compressed video (720p or lower) or just the audio.
 
 ### `POST /api/lectures`
-Request: `{ "title": "Lecture 5", "filename": "lec5.mp3", "contentType": "audio/mpeg" }`
+Request: `{ "title": "Lecture 5", "filename": "lec5.mp4", "contentType": "video/mp4" }`
 
 Response `201`:
 ```json
@@ -142,7 +142,7 @@ or with a plain `PUT`: `fetch(upload.uploadUrl, { method: "PUT", headers: { "con
 ### `POST /api/lectures/:id/process`
 Body (optional): `{ "language": "en" }`. Pass a Whisper language hint like `"hi"`, or leave it out to auto-detect.
 
-This call takes about 10 to 60 seconds and returns `{ "lectureId", "status": "ready", "segments": 120, "duration_s": 612.3, "language": "english" }`. Meanwhile the lecture row moves `transcribing (10)` → `summarising (60)` → `ready (100)`, or `failed` with `error` set. Show progress from Realtime, or poll `GET /api/lectures/:id`.
+This call takes about 10 to 60 seconds for a short lecture (longer for videos, which need audio extraction first) and returns `{ "lectureId", "status": "ready", "segments": 120, "duration_s": 612.3, "language": "english" }`. Meanwhile the lecture row moves `transcribing (10)` → audio extracted `(25)` → each chunk transcribed `(up to 60)` → `summarising (60)` → `ready (100)`, or `failed` with `error` set. Show progress from Realtime, or poll `GET /api/lectures/:id`.
 
 ### `GET /api/lectures`
 Response: `{ "lectures": [ { "id", "title", "source": "upload|live", "status", "progress", "duration_s", "created_at", "error" } ] }`
@@ -156,7 +156,7 @@ Response: `{ "lectures": [ { "id", "title", "source": "upload|live", "status", "
 ```
 
 ### `GET /api/lectures/:id/subtitles?lang=hi&format=vtt|json`
-`vtt` (default) works directly as a track: `<video src={mediaUrl}><track kind="subtitles" srclang="hi" src="/api/lectures/:id/subtitles?lang=hi" default /></video>`.
+`vtt` (default) works directly as a track on the uploaded video: `<video src={mediaUrl}><track kind="subtitles" srclang="hi" src="/api/lectures/:id/subtitles?lang=hi" default /></video>`.
 
 `json` returns `{ "lang", "cues": [ { "idx", "start_s", "end_s", "text", "original" } ] }`, which is good for a clickable transcript.
 

@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseAdmin, LECTURE_BUCKET } from "./supabase/server";
 import { transcribe } from "./ai/groq";
+import { toWhisperChunks } from "./media";
 import { generateNotes, type Notes, type Seg } from "./ai/lecture";
 import { translateMany } from "./translate";
 import { HttpError } from "./http";
@@ -29,7 +30,7 @@ async function setStatus(id: string, patch: Record<string, unknown>) {
   if (error) throw error;
 }
 
-/** Uploaded media → Groq Whisper → segments → Gemini notes. */
+/** Uploaded video/audio → (ffmpeg audio extraction + chunking) → Groq Whisper → segments → notes. */
 export async function processUpload(id: string, language?: string) {
   const db = supabaseAdmin();
   const lec = await getLecture(id);
@@ -38,10 +39,22 @@ export async function processUpload(id: string, language?: string) {
     await setStatus(id, { status: "transcribing", progress: 10, error: null });
     const { data: file, error } = await db.storage.from(LECTURE_BUCKET).download(lec.audio_path);
     if (error || !file) throw new Error(`Download failed: ${error?.message ?? "no file"}. Did the upload finish?`);
-    if (file.size > 25 * 1024 * 1024) throw new Error("File is over 25 MB (Groq free-tier limit). Upload compressed audio instead.");
+    const name = lec.audio_path.split("/").pop() || "lecture";
+    const chunks = await toWhisperChunks(file, name, lec.media_type);
+    await setStatus(id, { progress: 25 });
 
-    const tr = await transcribe(file, lec.audio_path.split("/").pop() || "audio.mp3", language);
-    const segs = tr.segments.map((s, idx) => ({ lecture_id: id, idx, start_s: s.start, end_s: s.end, text: s.text }));
+    const whisper: { start: number; end: number; text: string }[] = [];
+    let duration = 0;
+    let detected: string | undefined;
+    for (const [i, c] of chunks.entries()) {
+      const tr = await transcribe(c.data, c.filename, language);
+      whisper.push(...tr.segments.map((s) => ({ start: s.start + c.offset_s, end: s.end + c.offset_s, text: s.text })));
+      duration = c.offset_s + (tr.duration ?? 0);
+      detected ??= tr.language;
+      await setStatus(id, { progress: 25 + Math.round((35 * (i + 1)) / chunks.length) });
+    }
+    const tr = { duration, language: detected };
+    const segs = whisper.filter((s) => s.text).map((s, idx) => ({ lecture_id: id, idx, start_s: s.start, end_s: s.end, text: s.text }));
     await db.from("segments").delete().eq("lecture_id", id);
     if (segs.length) {
       const { error: insErr } = await db.from("segments").insert(segs);

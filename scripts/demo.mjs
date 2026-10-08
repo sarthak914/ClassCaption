@@ -2,7 +2,7 @@
 // End-to-end test of the ClassCaption API, no frontend needed.
 //   node scripts/demo.mjs                                  # against http://localhost:3000
 //   node scripts/demo.mjs https://your-app.vercel.app      # against a deployment
-//   node scripts/demo.mjs http://localhost:3000 lecture.mp3   # also runs the recorded pipeline on an audio file
+//   node scripts/demo.mjs http://localhost:3000 lecture.mp4   # also runs the recorded pipeline on a video or audio file
 //
 // Tip: run `node --env-file=.env.local scripts/listen.mjs <JOIN_CODE> hi` in a second terminal
 // while this runs to watch captions arrive over Supabase Realtime.
@@ -119,7 +119,7 @@ if (lec.status === "ready") {
 if (FILE) {
   console.log("\n— RECORDED MODE —");
   const buf = await readFile(FILE);
-  const types = { ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".wav": "audio/wav", ".webm": "audio/webm", ".mp4": "video/mp4", ".ogg": "audio/ogg" };
+  const types = { ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".wav": "audio/wav", ".webm": "audio/webm", ".mp4": "video/mp4", ".ogg": "audio/ogg", ".mov": "video/quicktime", ".mkv": "video/x-matroska" };
   const contentType = types[extname(FILE).toLowerCase()] || "application/octet-stream";
   const created = await call("POST", "/api/lectures", { title: basename(FILE), filename: basename(FILE), contentType });
   const put = await fetch(created.upload.uploadUrl, { method: "PUT", headers: { "content-type": contentType }, body: buf });

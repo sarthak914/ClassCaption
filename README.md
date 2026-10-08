@@ -2,7 +2,7 @@
 
 API for **ClassCaption**, an AI classroom companion with live translated captions, an "I'm lost" confusion meter, a pace coach, and recorded lectures with subtitles, notes, a quiz and Ask-the-lecture, in Indian languages.
 
-- **Stack:** Next.js API routes (Vercel), Supabase (Postgres, Realtime, Storage), Groq Whisper large-v3, Gemini Flash. Translation goes through a provider chain (Bhashini → Gemini → Groq Llama → Google fallback).
+- **Stack:** Next.js API routes (Vercel), ffmpeg (video to audio), Supabase (Postgres, Realtime, Storage), Groq Whisper large-v3, Gemini Flash. Translation goes through a provider chain (Bhashini → Groq → Gemini → Google fallback).
 - **Endpoint reference for the frontend:** [`API_CONTRACT.md`](API_CONTRACT.md)
 
 ## Setup (about 10 minutes)
@@ -19,7 +19,7 @@ API for **ClassCaption**, an AI classroom companion with live translated caption
    ```bash
    node --env-file=.env.local scripts/check-env.mjs   # checks your keys without the server
    node scripts/demo.mjs                              # live class, reactions, notes, Q&A, subtitles
-   node scripts/demo.mjs http://localhost:3000 lec.mp3   # also the recorded pipeline (≤25 MB audio)
+   node scripts/demo.mjs http://localhost:3000 lec.mp4   # also the recorded pipeline (video or audio, ≤50 MB)
    ```
    In a second terminal, watch captions arrive over Realtime the way a student phone would:
    ```bash
@@ -50,5 +50,5 @@ scripts/listen.mjs           Realtime listener (acts as a student phone)
 ## Known limits (prototype)
 
 - No login yet. Anyone with a join code can join, and anyone with the URL can call the API.
-- Uploads are capped at 25 MB (Groq free tier). Longer lectures need audio extraction or chunking.
+- Uploads are capped at 50 MB by Supabase Storage on the free plan. The server extracts and chunks audio itself (ffmpeg), so Groq's 25 MB limit doesn't apply.
 - Free-tier rate limits on Gemini and Groq apply. The translator chain falls back automatically.
