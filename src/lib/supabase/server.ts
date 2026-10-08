@@ -6,7 +6,8 @@ let admin: SupabaseClient | null = null;
 /** Service-role client. Bypasses RLS, so only ever use it inside API routes. */
 export function supabaseAdmin(): SupabaseClient {
   if (admin) return admin;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  // Tolerate a trailing slash or /rest/v1 copied from the dashboard; storage calls break with either.
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim().replace(/\/+$/, "").replace(/\/rest\/v1$/, "");
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
   admin = createClient(url, key, {

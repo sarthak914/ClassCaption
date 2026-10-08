@@ -6,7 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const [code, lang = "hi"] = process.argv.slice(2);
 if (!code) { console.error("usage: node --env-file=.env.local scripts/listen.mjs <JOIN_CODE> [lang]"); process.exit(1); }
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL, key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim().replace(/\/+$/, "").replace(/\/rest\/v1$/, ""), key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 if (!url || !key) { console.error("Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (use --env-file=.env.local)"); process.exit(1); }
 
 const supabase = createClient(url, key);

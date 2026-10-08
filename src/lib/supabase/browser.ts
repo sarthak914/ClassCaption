@@ -6,7 +6,8 @@ let client: SupabaseClient | null = null;
 /** Anon client for the browser: read-only data + Realtime. */
 export function supabaseBrowser(): SupabaseClient {
   if (client) return client;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  // Tolerate a trailing slash or /rest/v1 copied from the dashboard; storage calls break with either.
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim().replace(/\/+$/, "").replace(/\/rest\/v1$/, "");
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY");
   client = createClient(url, key, { realtime: { params: { eventsPerSecond: 20 } } });
