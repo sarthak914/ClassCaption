@@ -125,10 +125,15 @@ const q = await student.call("POST", `/api/class/${cls.id}/react`, {
   kind: "question", text: "सर, log n कैसे आया?", lang: "hi", captionSeq: 2,
 });
 show("question for teacher (translated)", q.reaction.text_en);
+
+console.log("\n— MODERATION —");
+await student.call("POST", `/api/class/${cls.id}/react`, { kind: "speak", text: "f.u.c.k this class", lang: "en" }, { expect: [422] });
+await student.call("POST", `/api/class/${cls.id}/react`, { kind: "question", text: "sir ye chutiyapa kya hai", lang: "hi" }, { expect: [422] });
+await stranger.call("POST", "/api/class/join", { pin: classroom.join_code, name: "B$DK", lang: "en" }, { expect: [422] });
 await call("POST", `/api/class/${cls.id}/announce`, { text: "Quiz on Friday" });
 
 const stats = await call("GET", `/api/class/${cls.id}/stats`);
-show("teacher stats", { lost_recent: stats.lost_recent, wpm: stats.wpm, pace: stats.pace, languages: stats.languages, from: stats.questions[0]?.student_name });
+show("teacher stats", { lost_recent: stats.lost_recent, wpm: stats.wpm, pace: stats.pace, languages: stats.languages, from: stats.questions[0]?.student_name, blocked: stats.blocked?.count });
 
 const late = await student.call("GET", `/api/class/${cls.id}?lang=mr`);
 show("late joiner in Marathi, first caption", late.captions[0]?.display);

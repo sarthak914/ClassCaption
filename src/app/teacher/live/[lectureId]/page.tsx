@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   Play,
   Layers,
+  ShieldAlert,
 } from "lucide-react";
 
 interface QuestionItem {
@@ -127,6 +128,7 @@ function TeacherLiveClassroomContent({
 
   // Questions Queue
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
+  const [blocked, setBlocked] = useState<{ count: number; students: { name: string; count: number }[] }>({ count: 0, students: [] });
 
   const recognitionRef = useRef<any>(null);
   const channelRef = useRef<any>(null);
@@ -397,7 +399,9 @@ function TeacherLiveClassroomContent({
           wpm: number;
           last_spike: { offset_s: number; text: string | null } | null;
           questions: Reaction[];
+          blocked?: { count: number; students: { name: string; count: number }[] };
         }>(`/api/class/${cls.id}/stats?window=60`);
+        if (st.blocked) setBlocked(st.blocked);
         setConfusionCount(st.lost_recent);
         setLastSpike(st.last_spike);
         setWpm(st.wpm);
@@ -761,6 +765,19 @@ function TeacherLiveClassroomContent({
               {unresolvedCount} Unresolved
             </span>
           </div>
+
+          {blocked.count > 0 && (
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-[#FEF2F2] border border-[#FECACA] text-xs text-[#991B1B]">
+              <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+              <p>
+                <span className="font-bold">
+                  {blocked.count} inappropriate {blocked.count === 1 ? "message" : "messages"} blocked
+                </span>{" "}
+                before reaching the queue or the speaker:{" "}
+                {blocked.students.map((b) => `${b.name}${b.count > 1 ? ` (${b.count})` : ""}`).join(", ")}
+              </p>
+            </div>
+          )}
 
           <div className="space-y-3">
             {unresolvedCount === 0 && (

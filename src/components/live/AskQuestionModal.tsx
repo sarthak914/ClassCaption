@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { HelpCircle, X, Send, UserCheck, EyeOff } from "lucide-react";
+import { HelpCircle, X, Send, UserCheck, EyeOff, ShieldAlert } from "lucide-react";
 
 interface AskQuestionModalProps {
   isOpen: boolean;
@@ -16,6 +16,7 @@ export function AskQuestionModal({ isOpen, onClose, onSubmit, studentName }: Ask
   const [isAnonymous, setIsAnonymous] = useState(true);
   const [loading, setLoading] = useState(false);
   const [sentSuccess, setSentSuccess] = useState(false);
+  const [error, setError] = useState("");
 
   if (!isOpen) return null;
 
@@ -24,6 +25,7 @@ export function AskQuestionModal({ isOpen, onClose, onSubmit, studentName }: Ask
     if (!text.trim() || loading) return;
 
     setLoading(true);
+    setError("");
     try {
       await onSubmit(text.trim(), isAnonymous);
       setSentSuccess(true);
@@ -33,7 +35,7 @@ export function AskQuestionModal({ isOpen, onClose, onSubmit, studentName }: Ask
         onClose();
       }, 1200);
     } catch (err) {
-      alert((err as Error).message);
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
@@ -76,7 +78,7 @@ export function AskQuestionModal({ isOpen, onClose, onSubmit, studentName }: Ask
             <div>
               <textarea
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={(e) => { setText(e.target.value); setError(""); }}
                 rows={3}
                 placeholder="Type your question or doubt here..."
                 required
@@ -119,6 +121,12 @@ export function AskQuestionModal({ isOpen, onClose, onSubmit, studentName }: Ask
               </button>
             </div>
 
+            {error && (
+              <p role="alert" className="flex items-start gap-2 p-3 rounded-xl bg-[#FEF2F2] border border-[#FECACA] text-[#B91C1C] text-xs font-semibold">
+                <ShieldAlert className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </p>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"

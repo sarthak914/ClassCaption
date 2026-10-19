@@ -102,13 +102,16 @@ Response `201`: `{ "reaction": { "id", "class_id", "kind", "text", "lang", "text
 
 `text_en` is the question translated into the class language. The teacher screen can read it aloud with `speechSynthesis.speak(new SpeechSynthesisUtterance(text_en))`.
 
+Typed text is moderated before it is saved: a word filter (English, Hindi and Hinglish in Latin or Devanagari, including leetspeak, masking like `f*ck` and spacing like `f.u.c.k`) and, when an AI key is set, a short AI check (set `MODERATION_AI=off` to skip it). Abusive text gets `422` and is never stored or read aloud. Three refusals in 10 minutes mute that student's typing for 10 minutes (`429`). Names given at join get the word filter too (`422`).
+
 ### `GET /api/class/:id/stats?window=60`
 Numbers for the confusion meter and pace coach. Poll every 3 to 5 seconds, or recompute on each Realtime event.
 ```json
 { "status": "live", "languages": ["hi","ta"], "captions": 42,
   "lost_recent": 4, "lost_total": 9, "window_s": 60,
   "wpm": 172, "pace": "too_fast",            // "silent" | "slow" | "good" | "too_fast"
-  "questions": [ { ...reaction } ] }
+  "questions": [ { ...reaction } ],
+  "blocked": { "count": 2, "students": [ { "name": "Asha", "count": 2 } ], "last_at": "..." } }
 ```
 
 ### `POST /api/class/:id/end`

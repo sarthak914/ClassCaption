@@ -2,10 +2,12 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { ok, route, type Ctx } from "@/lib/http";
 import { classForTeacher } from "@/lib/access";
 import { paceOf } from "@/lib/pace";
+import { blockedFor } from "@/lib/moderation";
 
 /**
  * GET /api/class/:id/stats?window=60
- * Teacher dashboard numbers (classroom's teacher only): confusion meter, pace coach and the question queue.
+ * Teacher dashboard numbers (classroom's teacher only): confusion meter, pace coach, the question queue,
+ * and `blocked`: messages the moderation filter stopped, by student.
  */
 export const GET = route(async (req: Request, { params }: Ctx<{ id: string }>) => {
   const { id } = await params;
@@ -48,5 +50,6 @@ export const GET = route(async (req: Request, { params }: Ctx<{ id: string }>) =
     wpm,
     pace,
     questions: questions.data ?? [],
+    blocked: blockedFor(id),
   });
 });

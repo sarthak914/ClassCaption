@@ -4,6 +4,7 @@ import { classForViewer } from "@/lib/access";
 import { baseLang } from "@/lib/languages";
 import { translate } from "@/lib/translate";
 import { rateLimit } from "@/lib/ratelimit";
+import { assertNotMuted, isInappropriate, rejectMessage } from "@/lib/moderation";
 
 /**
  * POST /api/class/:id/react   (a student who joined this classroom)
@@ -11,6 +12,8 @@ import { rateLimit } from "@/lib/ratelimit";
  *   { kind: "question", text, lang?, captionSeq?, anonymous? }  → typed doubt
  *   { kind: "speak", text, lang?, anonymous? }                  → "Speak for me" (teacher device reads it aloud)
  * The name comes from the student's pass, never from the request, so nobody can post as someone else.
+ * Typed text is moderated (word filter + AI check) before it is stored or read aloud: abusive
+ * messages get 422 and are never saved; three in 10 minutes mute that student for 10 minutes.
  */
 export const POST = route(async (req: Request, { params }: Ctx<{ id: string }>) => {
   const { id } = await params;
@@ -26,7 +29,10 @@ export const POST = route(async (req: Request, { params }: Ctx<{ id: string }>) 
   if (cls.status !== "live") throw new HttpError(409, "Class has ended");
   const sid = viewer.student.sid;
   if (b.kind === "lost") rateLimit(`lost:${id}:${sid}`, 1, 10, "You already tapped I'm lost");
-  else rateLimit(`typed:${id}:${sid}`, 6, 60, "You're sending too fast");
+  else {
+    assertNotMuted(id, sid);
+    rateLimit(`typed:${id}:${sid}`, 6, 60, "You're sending too fast");
+  }
 
   let text_en: string | null = null;
   const src = baseLang(cls.source_lang);
@@ -36,6 +42,10 @@ export const POST = route(async (req: Request, { params }: Ctx<{ id: string }>) 
     } catch {
       text_en = null;
     }
+  }
+  if (typed) {
+    const checks = await Promise.all([text, ...(text_en && text_en !== text ? [text_en] : [])].map((t) => isInappropriate(t)));
+    if (checks.some(Boolean)) rejectMessage(id, sid, viewer.student.name, b.kind);
   }
   const { data, error } = await supabaseAdmin()
     .from("reactions")

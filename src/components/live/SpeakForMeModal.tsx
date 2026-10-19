@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MessageSquarePlus, Volume2, X, Send, Sparkles } from "lucide-react";
+import { MessageSquarePlus, Volume2, X, Send, Sparkles, ShieldAlert } from "lucide-react";
 
 interface SpeakForMeModalProps {
   isOpen: boolean;
@@ -24,12 +24,14 @@ export function SpeakForMeModal({ isOpen, onClose, onSubmit, lectureId }: SpeakF
   const [customText, setCustomText] = useState("");
   const [loading, setLoading] = useState(false);
   const [sentSuccess, setSentSuccess] = useState(false);
+  const [error, setError] = useState("");
 
   if (!isOpen) return null;
 
   const handleSend = async (phrase: string) => {
     if (!phrase.trim() || loading) return;
     setLoading(true);
+    setError("");
     try {
       await onSubmit(phrase.trim(), "speak");
       setSentSuccess(true);
@@ -39,7 +41,7 @@ export function SpeakForMeModal({ isOpen, onClose, onSubmit, lectureId }: SpeakF
         onClose();
       }, 1500);
     } catch (err) {
-      alert((err as Error).message);
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
@@ -102,6 +104,12 @@ export function SpeakForMeModal({ isOpen, onClose, onSubmit, lectureId }: SpeakF
               </div>
             </div>
 
+            {error && (
+              <p role="alert" className="flex items-start gap-2 p-3 rounded-xl bg-[#FEF2F2] border border-[#FECACA] text-[#B91C1C] text-xs font-semibold">
+                <ShieldAlert className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </p>
+            )}
             {/* Custom Input */}
             <div className="pt-3 border-t border-[#E2E8F0]">
               <label className="text-xs font-bold uppercase tracking-wider text-[#475569] block mb-1.5">
@@ -111,7 +119,7 @@ export function SpeakForMeModal({ isOpen, onClose, onSubmit, lectureId }: SpeakF
                 <input
                   type="text"
                   value={customText}
-                  onChange={(e) => setCustomText(e.target.value)}
+                  onChange={(e) => { setCustomText(e.target.value); setError(""); }}
                   onKeyDown={(e) => e.key === "Enter" && handleSend(customText)}
                   placeholder="Type what you want to ask aloud..."
                   className="flex-1 h-12 px-4 rounded-xl border border-[#CBD5E1] bg-white text-sm text-[#0F172A] focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/20 outline-none"

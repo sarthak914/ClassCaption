@@ -3,6 +3,7 @@ import { addLanguage, captionsIn, getClassroomByPin, liveClassOf } from "@/lib/c
 import { LANG_CODES } from "@/lib/languages";
 import { clientIp, getStudent, newStudentId, setStudentCookie } from "@/lib/auth";
 import { rateLimit } from "@/lib/ratelimit";
+import { hasFoulLanguage } from "@/lib/profanity";
 
 /**
  * POST /api/class/join  { pin, name, lang }   (student types or scans the classroom PIN)
@@ -18,6 +19,8 @@ export const POST = route(async (req: Request) => {
   const lang = b.lang || "en";
   if (!pin) throw new HttpError(400, "Enter the classroom PIN");
   if (name.length < 2 || name.length > 40) throw new HttpError(400, "Enter your name (2 to 40 characters)");
+  // The name is shown to the teacher and read aloud with "Speak for me", so it gets the word filter too.
+  if (hasFoulLanguage(name)) throw new HttpError(422, "Please use your real name");
   if (!LANG_CODES.includes(lang)) throw new HttpError(400, `Unsupported lang. Use one of: ${LANG_CODES.join(", ")}`);
 
   rateLimit(`join:${clientIp(req)}`, 15, 600, "Too many PIN attempts from this network");
