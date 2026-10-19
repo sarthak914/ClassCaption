@@ -6,7 +6,8 @@ import { Navbar } from "@/components/navigation/Navbar";
 import { PaceGauge } from "@/components/live/PaceGauge";
 import { ConfusionMeter } from "@/components/live/ConfusionMeter";
 import { createClient } from "@/lib/supabase/client";
-import { api, isUuid, speak } from "@/lib/client/api";
+import { api, isUuid, needsAuth, speak } from "@/lib/client/api";
+import { JoinQrModal } from "@/components/join/JoinQrModal";
 import {
   Mic,
   MicOff,
@@ -107,6 +108,8 @@ function TeacherLiveClassroomContent({
   const [sent, setSent] = useState({ ok: 0, total: 0 });
   const [captionError, setCaptionError] = useState("");
   const [ttsQueue, setTtsQueue] = useState(0);
+  const [streamed, setStreamed] = useState(0);
+  const [showQr, setShowQr] = useState(false);
 
   // Board capture
   const [scanning, setScanning] = useState(false);
@@ -133,17 +136,18 @@ function TeacherLiveClassroomContent({
   const endedRef = useRef(false);
   const lastInterimRef = useRef(0);
   const readersRef = useRef<Record<string, number>>({});
+  const seenReactionsRef = useRef<Set<string> | null>(null);
+  const lostRef = useRef(0);
 
-  // Resolve the class: a real class id, "classroom-<id>" (start one there), or a demo link (start a fresh one).
+  // Resolve the class: a real class id, or "classroom-<id>" (start one in that classroom).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         if (!isUuid(lectureId)) {
-          const classroomId = lectureId.startsWith("classroom-") ? lectureId.slice("classroom-".length) : undefined;
-          const started = await api<{ class: ClassInfo }>("/api/class/start", {
-            json: classroomId ? { classroomId } : { title: "Live Lecture" },
-          });
+          const classroomId = lectureId.startsWith("classroom-") ? lectureId.slice("classroom-".length) : "";
+          if (!isUuid(classroomId)) throw new Error("Start a live class from your dashboard.");
+          const started = await api<{ class: ClassInfo }>("/api/class/start", { json: { classroomId } });
           if (!cancelled) router.replace(`/teacher/live/${started.class.id}`);
           return;
         }
@@ -158,6 +162,7 @@ function TeacherLiveClassroomContent({
         clsRef.current = data.class;
         setCls(data.class);
       } catch (err) {
+        if (needsAuth(err)) return router.replace(`/teacher/login?next=${encodeURIComponent(`/teacher/live/${lectureId}`)}`);
         if (!cancelled) setLoadError((err as Error).message);
       }
     })();
@@ -331,7 +336,8 @@ function TeacherLiveClassroomContent({
     } catch {}
   };
 
-  // Realtime: students' presence (joined + readers per language), "I'm lost" pings, questions, speak-for-me
+  // Realtime: students' presence (joined + readers per language) and every caption (to mirror in the feeds).
+  // Student reactions are private, so they come from the stats poll below, not from Realtime.
   useEffect(() => {
     if (!cls) return;
     const supabase = createClient();
@@ -357,27 +363,16 @@ function TeacherLiveClassroomContent({
         ({ new: c }: { new: { seq: number; text: string; translations: Record<string, string> } }) => {
           seqRef.current = Math.max(seqRef.current, c.seq + 1);
           setTeacherAudio(c.text);
+          setStreamed((n) => n + 1);
           const tr = c.translations ?? {};
           setFeeds((prev) => {
             const next = { ...prev };
-            for (const l of FEED_LANGS) next[l] = { ...prev[l], text: tr[l] || (l === "en" ? c.text : prev[l].text) };
+            for (const l of FEED_LANGS) {
+              const text = tr[l] || (l === "en" ? c.text : "");
+              next[l] = { ...prev[l], text: text || prev[l].text, status: text ? (prev[l].status.includes("ms") ? prev[l].status : "Live") : prev[l].status };
+            }
             return next;
           });
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "reactions", filter: `class_id=eq.${cls.id}` },
-        ({ new: r }: { new: Reaction }) => {
-          if (r.kind === "lost") {
-            setConfusionCount((prev) => prev + 1);
-            if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([150, 100, 150]);
-            return;
-          }
-          const q = toQuestion(r);
-          setQuestions((prev) => (prev.some((p) => p.id === q.id) ? prev : [q, ...prev]));
-          // Speak for me: the teacher's device reads it aloud straight away.
-          if (r.kind === "speak") speak(`${q.studentName === "Anonymous Student" ? "A student" : q.studentName} says: ${q.text}`, clsRef.current?.source_lang || "en-IN", 0.95);
         },
       )
       .subscribe(async (status: string) => {
@@ -390,34 +385,43 @@ function TeacherLiveClassroomContent({
     };
   }, [cls]);
 
-  // Stats poll: confusion in the last minute, last spike, pace, and the question queue (catch-up after reload)
+  // Stats poll: confusion in the last minute, last spike, pace, and the question queue.
+  // New "Speak for me" requests are read aloud by this laptop as soon as they arrive.
   useEffect(() => {
     if (!cls) return;
-    let first = true;
     const load = async () => {
       try {
         const st = await api<{
           lost_recent: number;
+          lost_total: number;
           wpm: number;
           last_spike: { offset_s: number; text: string | null } | null;
           questions: Reaction[];
-        }>(`/api/class/${cls.id}/stats`);
+        }>(`/api/class/${cls.id}/stats?window=60`);
         setConfusionCount(st.lost_recent);
         setLastSpike(st.last_spike);
         setWpm(st.wpm);
-        if (first) {
-          first = false;
-          setQuestions((prev) => {
-            const have = new Set(prev.map((p) => p.id));
-            return [...prev, ...st.questions.map(toQuestion).filter((q) => !have.has(q.id))];
-          });
+        if (st.lost_total > lostRef.current && seenReactionsRef.current && "vibrate" in navigator) navigator.vibrate([150, 100, 150]);
+        lostRef.current = st.lost_total;
+        const firstLoad = !seenReactionsRef.current;
+        const seen = (seenReactionsRef.current ??= new Set());
+        const fresh = st.questions.filter((r) => !seen.has(String(r.id))).map(toQuestion); // newest first
+        fresh.forEach((q) => seen.add(q.id));
+        if (!fresh.length) return;
+        setQuestions((prev) => [...fresh, ...prev]);
+        if (!firstLoad) {
+          for (const q of [...fresh].reverse().filter((f) => f.kind === "speak")) {
+            speak(`${q.studentName === "Anonymous Student" ? "A student" : q.studentName} says: ${q.text}`, clsRef.current?.source_lang || "en-IN", 0.95);
+          }
         }
-      } catch {}
+      } catch (err) {
+        if (needsAuth(err)) router.replace("/teacher/login");
+      }
     };
     load();
-    const t = setInterval(load, 4000);
+    const t = setInterval(load, 2000);
     return () => clearInterval(t);
-  }, [cls]);
+  }, [cls, router]);
 
   const handleEndLecture = async () => {
     if (!cls) return;
@@ -454,10 +458,10 @@ function TeacherLiveClassroomContent({
       form.append("image", img, "board.jpg");
       form.append("lang", "en");
       form.append("context", cls.classroom?.name ?? cls.title);
+      form.append("classId", cls.id);
       const res = await fetch("/api/board", { method: "POST", body: form });
       const board = await res.json();
       if (!res.ok) throw new Error(board.error || "Board scan failed");
-      channelRef.current?.send({ type: "broadcast", event: "board", payload: board });
       alert(`Board sent to ${joinedCount} student${joinedCount === 1 ? "" : "s"}: ${board.title}\n\n${board.explanation}`);
     } catch (err) {
       alert((err as Error).message);
@@ -466,14 +470,16 @@ function TeacherLiveClassroomContent({
     }
   };
 
-  const shareJoinLink = async () => {
+  const announce = async () => {
     if (!cls) return;
-    const pin = cls.classroom?.join_code ?? cls.join_code;
-    const url = `${window.location.origin}/student/live/${cls.id}`;
+    const msg = prompt("Announcement for students (translated into each student's language):");
+    if (!msg?.trim()) return;
     try {
-      await navigator.clipboard.writeText(url);
-    } catch {}
-    alert(`Students join with PIN ${pin}\nor open: ${url}\n(link copied)`);
+      await api(`/api/class/${cls.id}/announce`, { json: { text: msg.trim() } });
+      alert(`Announcement sent to ${joinedCount} student${joinedCount === 1 ? "" : "s"}.`);
+    } catch (err) {
+      alert((err as Error).message);
+    }
   };
 
   const unresolvedCount = questions.filter((q) => !q.resolved).length;
@@ -497,9 +503,21 @@ function TeacherLiveClassroomContent({
       <Navbar
         title="ClassCaption"
         subtitle="Instructor Telemetry & Live Audio"
+        homeHref="/teacher/dashboard"
         showEndLecture={true}
         onEndLecture={handleEndLecture}
       />
+
+      {cls.classroom && (
+        <JoinQrModal
+          isOpen={showQr}
+          onClose={() => setShowQr(false)}
+          classroomId={cls.classroom.id}
+          classroomName={cls.classroom.name}
+          pin={cls.classroom.join_code}
+          onPinChange={(pin) => setCls((c) => (c && c.classroom ? { ...c, classroom: { ...c.classroom, join_code: pin } } : c))}
+        />
+      )}
 
       <main className="max-w-2xl mx-auto px-4 py-5 space-y-5">
         {/* 1. Subheader Card with Status Metrics matching Stitch */}
@@ -531,9 +549,12 @@ function TeacherLiveClassroomContent({
               </span>
             </div>
 
-            <div className="h-10 px-3.5 rounded-xl border border-[#CBD5E1] bg-[#FEF3C7] flex items-center gap-2 text-xs font-bold font-mono text-[#92400E]">
-              <span>PIN: {cls.classroom?.join_code ?? cls.join_code}</span>
-            </div>
+            <button
+              onClick={() => setShowQr(true)}
+              className="h-10 px-3.5 rounded-xl border border-[#CBD5E1] bg-[#FEF3C7] flex items-center gap-2 text-xs font-bold font-mono text-[#92400E] hover:bg-[#FDE68A]"
+            >
+              <span>PIN: {cls.classroom?.join_code}</span>
+            </button>
 
             <div
               className={`h-10 px-3.5 rounded-xl border flex items-center gap-2 text-xs font-bold ${
@@ -561,9 +582,9 @@ function TeacherLiveClassroomContent({
         {/* 2. Real-Time Confusion Meter matching Stitch */}
         <ConfusionMeter
           count={confusionCount}
-          totalStudents={Math.max(1, joinedCount)}
-          lastSpikeTime={lastSpike ? formatTime(Math.round(lastSpike.offset_s)).replace(/^00:/, "") : "--:--"}
-          topic={spikeTopic}
+          totalStudents={joinedCount}
+          lastSpikeTime={lastSpike ? formatTime(Math.round(lastSpike.offset_s)).replace(/^00:/, "") : undefined}
+          topic={lastSpike?.text ? spikeTopic : undefined}
         />
 
         {/* 3. Speech Pace Coach Telemetry matching Stitch */}
@@ -606,7 +627,7 @@ function TeacherLiveClassroomContent({
 
           <div className="bg-[#F1F5F9] rounded-xl p-3 text-xs text-[#475569] flex items-center gap-2">
             <span>
-              ⓘ {captionError || `${sent.ok} caption${sent.ok === 1 ? "" : "s"} streamed • ${Object.keys(readersRef.current).length || 0} student language${Object.keys(readersRef.current).length === 1 ? "" : "s"} active`}
+              ⓘ {captionError || `${streamed} caption${streamed === 1 ? "" : "s"} streamed • ${Object.keys(readersRef.current).length || 0} student language${Object.keys(readersRef.current).length === 1 ? "" : "s"} active`}
             </span>
           </div>
         </section>
@@ -778,7 +799,7 @@ function TeacherLiveClassroomContent({
                     {q.kind === "speak" ? (
                       <span className="px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1E40AF] text-xs font-bold flex items-center gap-1 border border-[#BFDBFE]">
                         <Volume2 className="w-3.5 h-3.5" />
-                        Deaf Assistive TTS
+                        Speak for Me
                       </span>
                     ) : (
                       <span className="px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1E40AF] text-xs font-bold">
@@ -858,22 +879,16 @@ function TeacherLiveClassroomContent({
             </button>
 
             <button
-              onClick={shareJoinLink}
+              onClick={() => setShowQr(true)}
               className="h-24 rounded-2xl bg-white border border-[#CBD5E1] hover:bg-[#F1F5F9] text-[#0F172A] font-bold text-xs flex flex-col items-center justify-center gap-2 transition active:scale-95"
             >
               <Share2 className="w-6 h-6 text-[#475569]" />
-              <span>Share Join Link</span>
+              <span>Show Join QR</span>
             </button>
           </div>
 
           <button
-            onClick={() => {
-              const msg = prompt("Enter announcement for students:");
-              if (msg?.trim()) {
-                channelRef.current?.send({ type: "broadcast", event: "announcement", payload: { text: msg.trim(), lang: cls.source_lang } });
-                alert(`Announcement broadcasted to all ${joinedCount} students.`);
-              }
-            }}
+            onClick={announce}
             className="w-full h-12 rounded-xl bg-white border border-[#CBD5E1] hover:bg-[#F1F5F9] text-[#0F172A] font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95"
           >
             <Megaphone className="w-4 h-4 text-[#D97706]" />

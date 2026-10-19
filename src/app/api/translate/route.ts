@@ -1,8 +1,12 @@
 import { body, HttpError, ok, route } from "@/lib/http";
 import { translate } from "@/lib/translate";
+import { requireTeacher } from "@/lib/auth";
+import { rateLimit } from "@/lib/ratelimit";
 
-// POST /api/translate  { texts: string[] | text: string, targets: string[] | target: string, source?: "en" }
+// (signed-in teacher) POST /api/translate  { texts: string[] | text: string, targets: string[] | target: string, source?: "en" }
 export const POST = route(async (req: Request) => {
+  const teacher = await requireTeacher();
+  rateLimit(`translate:${teacher.tid}`, 30, 60);
   const b = await body<{ texts?: string[]; text?: string; targets?: string[]; target?: string; source?: string }>(req);
   const texts = b.texts ?? (b.text ? [b.text] : []);
   const targets = b.targets ?? (b.target ? [b.target] : []);

@@ -1,15 +1,16 @@
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { ok, route, type Ctx } from "@/lib/http";
-import { getClass } from "@/lib/classes";
+import { classForTeacher } from "@/lib/access";
+import { paceOf } from "@/lib/pace";
 
 /**
  * GET /api/class/:id/stats?window=60
- * Teacher dashboard numbers: confusion meter + pace coach.
+ * Teacher dashboard numbers (classroom's teacher only): confusion meter, pace coach and the question queue.
  */
 export const GET = route(async (req: Request, { params }: Ctx<{ id: string }>) => {
   const { id } = await params;
-  const windowS = Number(new URL(req.url).searchParams.get("window") ?? 60);
-  const cls = await getClass(id);
+  const windowS = Math.min(600, Math.max(10, Number(new URL(req.url).searchParams.get("window") ?? 60)));
+  const { cls } = await classForTeacher(id);
   const db = supabaseAdmin();
   const since = new Date(Date.now() - windowS * 1000).toISOString();
   const [lostRecent, lostTotal, questions, recentCaps, total] = await Promise.all([
@@ -23,7 +24,7 @@ export const GET = route(async (req: Request, { params }: Ctx<{ id: string }>) =
   const words = (recentCaps.data ?? []).reduce((n, c) => n + c.text.split(/\s+/).filter(Boolean).length, 0);
   const elapsed = Math.min(windowS, (Date.now() - new Date(cls.started_at).getTime()) / 1000);
   const wpm = elapsed > 5 ? Math.round((words / elapsed) * 60) : 0;
-  const pace = wpm === 0 ? "silent" : wpm > 160 ? "too_fast" : wpm < 90 ? "slow" : "good";
+  const pace = paceOf(wpm);
 
   const { data: lastLost } = await db
     .from("reactions").select("caption_seq,offset_s,created_at").eq("class_id", id).eq("kind", "lost")

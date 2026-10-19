@@ -14,9 +14,9 @@ export function BottomNav({ currentTab }: BottomNavProps) {
   const tabs = [
     { id: "home", label: "Home", href: "/student", icon: Home },
     { id: "classes", label: "Classes", href: "/student#classes", icon: GraduationCap },
-    { id: "recordings", label: "Recordings", href: "/student/lectures/demo", icon: Video },
-    { id: "notes", label: "AI Notes", href: "/student/lectures/demo?tab=notes", icon: Sparkles },
-    { id: "profile", label: "Profile", href: "/teacher/dashboard", icon: User },
+    { id: "recordings", label: "Recordings", href: "/student#recordings", icon: Video },
+    { id: "notes", label: "Glossary", href: "/student#glossary", icon: Sparkles },
+    { id: "profile", label: "Profile", href: "/student#profile", icon: User },
   ];
 
   const activeId =

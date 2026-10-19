@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/navigation/Navbar";
-import { api, mmss } from "@/lib/client/api";
+import { api, mmss, needsAuth } from "@/lib/client/api";
+import { JoinQrModal } from "@/components/join/JoinQrModal";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import {
   Plus,
@@ -18,6 +19,7 @@ import {
   Sparkles,
   Layers,
   Upload,
+  LogOut,
 } from "lucide-react";
 
 type Room = {
@@ -43,14 +45,18 @@ type LectureItem = {
   classroom: { name: string; subject_code: string | null } | null;
 };
 
+type Teacher = { id: string; name: string; email: string; institution: string | null; department: string | null };
+
 export default function TeacherDashboardPage() {
   const router = useRouter();
+  const [teacher, setTeacher] = useState<Teacher | null>(null);
+  const [qrRoom, setQrRoom] = useState<Room | null>(null);
   const [classrooms, setClassrooms] = useState<Room[]>([]);
   const [lectures, setLectures] = useState<LectureItem[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newRoomName, setNewRoomName] = useState("CS302: Data Structures & Algorithms");
-  const [newSubjectCode, setNewSubjectCode] = useState("CS302");
-  const [newRoomVenue, setNewRoomVenue] = useState("Lecture Hall 304");
+  const [newRoomName, setNewRoomName] = useState("");
+  const [newSubjectCode, setNewSubjectCode] = useState("");
+  const [newRoomVenue, setNewRoomVenue] = useState("");
   const [newSourceLang, setNewSourceLang] = useState("en-IN");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -65,6 +71,9 @@ export default function TeacherDashboardPage() {
   const [uploadedId, setUploadedId] = useState<string | null>(null);
 
   useEffect(() => {
+    api<{ teacher: Teacher | null }>("/api/auth/me")
+      .then((d) => (d.teacher ? setTeacher(d.teacher) : router.replace("/teacher/login")))
+      .catch(() => {});
     fetchClassrooms();
     fetchLectures();
     const t = setInterval(fetchLectures, 5000);
@@ -77,8 +86,14 @@ export default function TeacherDashboardPage() {
       setClassrooms(data.classrooms);
       setError("");
     } catch (err) {
+      if (needsAuth(err)) return router.replace("/teacher/login");
       setError((err as Error).message);
     }
+  };
+
+  const signOut = async () => {
+    await api("/api/auth/logout", { json: {} }).catch(() => {});
+    router.replace("/teacher/login");
   };
 
   const fetchLectures = async () => {
@@ -102,6 +117,9 @@ export default function TeacherDashboardPage() {
       });
       setClassrooms([data.classroom, ...classrooms]);
       setShowCreateModal(false);
+      setNewRoomName("");
+      setNewSubjectCode("");
+      setNewRoomVenue("");
     } catch (err) {
       alert((err as Error).message);
     } finally {
@@ -169,7 +187,7 @@ export default function TeacherDashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-24 text-[#0F172A]">
-      <Navbar title="ClassCaption" subtitle="Instructor Portal" />
+      <Navbar title="ClassCaption" subtitle="Instructor Portal" homeHref="/teacher/dashboard" />
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         {/* Welcome Header Banner */}
@@ -180,11 +198,17 @@ export default function TeacherDashboardPage() {
               <span>Academic Instructor Console</span>
             </div>
             <h1 className="text-2xl font-extrabold text-[#0F172A] font-heading">
-              Prof. R. Sharma
+              {teacher?.name ?? "\u00a0"}
             </h1>
             <p className="text-xs text-[#64748B]">
-              IIT Delhi • Department of Computer Science &amp; Engineering
+              {teacher ? [teacher.institution, teacher.department].filter(Boolean).join(" • ") || teacher.email : "\u00a0"}
             </p>
+            {teacher && (
+              <button onClick={signOut} className="mt-1 text-xs font-bold text-[#64748B] hover:text-[#DC2626] flex items-center gap-1">
+                <LogOut className="w-3.5 h-3.5" />
+                Sign out
+              </button>
+            )}
           </div>
 
           <button
@@ -276,12 +300,13 @@ export default function TeacherDashboardPage() {
                       <Upload className="w-3.5 h-3.5" />
                       Upload Recording
                     </button>
-                    <Link
-                      href={`/student/live/classroom-${room.id}`}
-                      className="font-bold text-[#1E3A8A] hover:underline"
+                    <button
+                      onClick={() => setQrRoom(room)}
+                      className="font-bold text-[#1E3A8A] hover:underline flex items-center gap-1"
                     >
-                      Open Student View →
-                    </Link>
+                      <QrCode className="w-3.5 h-3.5" />
+                      Join QR &amp; PIN
+                    </button>
                   </div>
                 </div>
               </div>
@@ -347,6 +372,20 @@ export default function TeacherDashboardPage() {
         </section>
       </main>
 
+      {qrRoom && (
+        <JoinQrModal
+          isOpen
+          onClose={() => setQrRoom(null)}
+          classroomId={qrRoom.id}
+          classroomName={qrRoom.name}
+          pin={qrRoom.join_code}
+          onPinChange={(pin) => {
+            setQrRoom({ ...qrRoom, join_code: pin });
+            setClassrooms((prev) => prev.map((r) => (r.id === qrRoom.id ? { ...r, join_code: pin } : r)));
+          }}
+        />
+      )}
+
       {/* Create Classroom Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
@@ -365,6 +404,7 @@ export default function TeacherDashboardPage() {
                   value={newRoomName}
                   onChange={(e) => setNewRoomName(e.target.value)}
                   required
+                  placeholder="e.g. Data Structures & Algorithms"
                   className="w-full h-11 px-3 rounded-xl border border-[#CBD5E1] bg-white text-sm"
                 />
               </div>
@@ -378,6 +418,7 @@ export default function TeacherDashboardPage() {
                     type="text"
                     value={newSubjectCode}
                     onChange={(e) => setNewSubjectCode(e.target.value)}
+                    placeholder="e.g. CS302"
                     className="w-full h-11 px-3 rounded-xl border border-[#CBD5E1] bg-white text-sm"
                   />
                 </div>
@@ -389,6 +430,7 @@ export default function TeacherDashboardPage() {
                     type="text"
                     value={newRoomVenue}
                     onChange={(e) => setNewRoomVenue(e.target.value)}
+                    placeholder="e.g. LH-304"
                     className="w-full h-11 px-3 rounded-xl border border-[#CBD5E1] bg-white text-sm"
                   />
                 </div>

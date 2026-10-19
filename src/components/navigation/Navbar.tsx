@@ -12,6 +12,7 @@ interface NavbarProps {
   onEndLecture?: () => void;
   selectedLang?: string;
   onToggleLang?: () => void;
+  homeHref?: string;
 }
 
 export function Navbar({
@@ -21,6 +22,7 @@ export function Navbar({
   onEndLecture,
   selectedLang = "Hindi / हिंदी",
   onToggleLang,
+  homeHref = "/student",
 }: NavbarProps) {
   const pathname = usePathname();
   const [fontSize, setFontSize] = useState<"normal" | "large" | "huge">("normal");
@@ -44,7 +46,7 @@ export function Navbar({
       <div className="max-w-5xl mx-auto flex items-center justify-between gap-2">
         {/* Left branding */}
         <div className="flex items-center gap-3">
-          <Link href="/student" className="flex items-center gap-2.5 text-[#0F172A] hover:opacity-90">
+          <Link href={homeHref} className="flex items-center gap-2.5 text-[#0F172A] hover:opacity-90">
             <div className="w-9 h-9 rounded-xl bg-[#1E3A8A] flex items-center justify-center text-white shadow-sm">
               <GraduationCap className="w-5 h-5" />
             </div>

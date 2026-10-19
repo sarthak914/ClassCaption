@@ -1,12 +1,12 @@
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { body, HttpError, need, ok, route } from "@/lib/http";
-import { getClass } from "@/lib/classes";
+import { classForTeacher } from "@/lib/access";
 import { baseLang, sourceIsMixed } from "@/lib/languages";
 import { translate } from "@/lib/translate";
 
 /**
  * POST /api/captions  { classId, text, seq?, offsetS?, targets? }
- * Called by the teacher's browser once per FINAL Web Speech result.
+ * Called by the teacher's browser (signed in, owns the classroom) once per FINAL Web Speech result.
  * Translates into every language a student picked, then inserts the row;
  * Supabase Realtime pushes it to all students subscribed to the class.
  */
@@ -14,8 +14,8 @@ export const POST = route(async (req: Request) => {
   const t0 = Date.now();
   const b = await body<{ classId?: string; text?: string; seq?: number; offsetS?: number; targets?: string[] }>(req);
   const classId = need(b.classId, "classId is required");
-  const text = need(b.text?.trim(), "text is required");
-  const cls = await getClass(classId);
+  const text = need(b.text?.trim().slice(0, 2000), "text is required");
+  const { cls } = await classForTeacher(classId);
   if (cls.status !== "live") throw new HttpError(409, "Class has ended");
 
   const db = supabaseAdmin();

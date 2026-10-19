@@ -1,4 +1,5 @@
 import "server-only";
+import { randomBytes } from "node:crypto";
 import { supabaseAdmin } from "./supabase/server";
 import { HttpError } from "./http";
 import { baseLang, sourceIsMixed } from "./languages";
@@ -26,6 +27,7 @@ export type ClassroomRow = {
   description: string | null;
   join_code: string;
   default_source_language: string;
+  teacher_id: string | null;
   created_at: string;
 };
 
@@ -48,35 +50,27 @@ export async function getClass(id: string): Promise<ClassRow> {
   return data;
 }
 
-/**
- * Accepts a live class's own join code, or a classroom PIN (then returns that
- * classroom's current live class).
- */
-export async function getClassByCode(code: string): Promise<ClassRow> {
-  const db = supabaseAdmin();
-  const clean = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-  const { data, error } = await db
-    .from("classes")
-    .select(WITH_CLASSROOM)
-    .eq("join_code", clean)
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+/** Classroom by its PIN (what students type or scan). */
+export async function getClassroomByPin(pin: string): Promise<ClassroomRow> {
+  const clean = pin.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const { data, error } = await supabaseAdmin().from("classrooms").select("*").eq("join_code", clean).maybeSingle();
   if (error) throw error;
-  if (data) return data;
+  if (!data) throw new HttpError(404, "Invalid classroom PIN. Please check the code on the screen.");
+  return data;
+}
 
-  const { data: room } = await db.from("classrooms").select("id,name").eq("join_code", clean).maybeSingle();
-  if (!room) throw new HttpError(404, "Invalid classroom PIN. Please check the code on the screen.");
-  const { data: live } = await db
+/** The classroom's live class, if one is running. */
+export async function liveClassOf(classroomId: string): Promise<ClassRow | null> {
+  const { data, error } = await supabaseAdmin()
     .from("classes")
     .select(WITH_CLASSROOM)
-    .eq("classroom_id", room.id)
+    .eq("classroom_id", classroomId)
     .eq("status", "live")
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (!live) throw new HttpError(409, `${room.name} has no live lecture right now. Ask your teacher to start the class.`);
-  return live;
+  if (error) throw error;
+  return data;
 }
 
 export async function listClasses(opts: { status?: string; classroomId?: string; limit?: number } = {}) {
@@ -90,7 +84,8 @@ export async function listClasses(opts: { status?: string; classroomId?: string;
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
 export function newJoinCode(n = 6) {
-  return Array.from({ length: n }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join("");
+  // crypto-random so PINs can't be predicted from earlier ones
+  return Array.from(randomBytes(n), (b) => ALPHABET[b % ALPHABET.length]).join("");
 }
 
 /** Captions with a `display` field in `lang`, translating and caching any that lack it. */
@@ -126,4 +121,52 @@ export async function addLanguage(cls: ClassRow, lang: string) {
   const languages = [...(cls.languages ?? []), lang];
   await supabaseAdmin().from("classes").update({ languages }).eq("id", cls.id);
   return languages;
+}
+
+/** Every language this class is being read in (plus Hindi and English for the teacher's feeds). */
+export function classTargets(cls: ClassRow) {
+  const src = baseLang(cls.source_lang);
+  return [...new Set([...(cls.languages ?? []), "hi", "en"])].filter((l) => l !== src || sourceIsMixed(cls.source_lang));
+}
+
+/** Translate teacher-side texts into every language students are reading. Never throws. */
+export async function translateForClass(cls: ClassRow, texts: string[], source?: string): Promise<Record<string, string[]>> {
+  const src = source ?? baseLang(cls.source_lang);
+  const targets = classTargets(cls).filter((l) => l !== src);
+  if (!texts.length || !targets.length) return {};
+  try {
+    return (await translate(texts, targets, src, { keepSource: sourceIsMixed(cls.source_lang) })).result;
+  } catch (e) {
+    console.error("event translation failed:", (e as Error).message);
+    return {};
+  }
+}
+
+export type EventKind = "announcement" | "board" | "ended";
+
+/** Server-written live events; students receive them over Realtime (table class_events). */
+export async function addEvent(classId: string, kind: EventKind, payload: Record<string, unknown>) {
+  const { data, error } = await supabaseAdmin().from("class_events").insert({ class_id: classId, kind, payload }).select("*").single();
+  if (error) throw error;
+  return data;
+}
+
+export async function latestEvents(classId: string) {
+  const { data } = await supabaseAdmin()
+    .from("class_events")
+    .select("*")
+    .eq("class_id", classId)
+    .in("kind", ["announcement", "board"])
+    .order("created_at", { ascending: false })
+    .limit(10);
+  const rows = data ?? [];
+  return { announcement: rows.find((r) => r.kind === "announcement") ?? null, board: rows.find((r) => r.kind === "board") ?? null };
+}
+
+/** What a student may see of a class: no PINs or owner ids. */
+export function studentView(cls: ClassRow) {
+  const { join_code: _j, classroom, ...rest } = cls;
+  if (!classroom) return { ...rest, classroom: null };
+  const { join_code: _p, teacher_id: _t, ...room } = classroom;
+  return { ...rest, classroom: room };
 }

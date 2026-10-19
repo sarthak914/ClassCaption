@@ -9,14 +9,10 @@ interface ConfusionMeterProps {
   topic?: string;
 }
 
-export function ConfusionMeter({
-  count,
-  totalStudents = 64,
-  lastSpikeTime = "41:10",
-  topic = "recursive base condition",
-}: ConfusionMeterProps) {
-  const percentage = Math.round((count / Math.max(1, totalStudents)) * 100);
-  const isHigh = percentage >= 5;
+export function ConfusionMeter({ count, totalStudents = 0, lastSpikeTime, topic }: ConfusionMeterProps) {
+  // Taps in the last minute as a share of the students in the room (taps can't exceed one per student per 10 s).
+  const percentage = totalStudents > 0 ? Math.min(100, Math.round((count / totalStudents) * 100)) : count > 0 ? 100 : 0;
+  const isHigh = count > 0 && percentage >= 5;
 
   return (
     <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-sm">
@@ -27,10 +23,10 @@ export function ConfusionMeter({
           </div>
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-[#475569] block">
-              Real-Time Confusion
+              &ldquo;I&apos;m Lost&rdquo; taps (last minute)
             </span>
             <span className="text-2xl font-extrabold text-[#0F172A] font-heading">
-              {count} Students <span className="text-sm font-semibold text-[#64748B]">({percentage}%)</span>
+              {count} {count === 1 ? "tap" : "taps"} <span className="text-sm font-semibold text-[#64748B]">({totalStudents ? `${percentage}% of ${totalStudents}` : "no students yet"})</span>
             </span>
           </div>
         </div>
@@ -62,11 +58,16 @@ export function ConfusionMeter({
       </div>
 
       {/* Spike Alert Banner matching Stitch */}
-      {count > 0 && (
+      {count > 0 && lastSpikeTime && (
         <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-xl p-3 flex items-center gap-2 text-[#991B1B]">
           <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[#DC2626]" />
           <p className="text-xs font-semibold">
-            Spike at {lastSpikeTime} on <span className="underline font-bold">{topic}</span>
+            Latest at {lastSpikeTime}
+            {topic ? (
+              <>
+                {" "}during <span className="underline font-bold">{topic}</span>
+              </>
+            ) : null}
           </p>
         </div>
       )}

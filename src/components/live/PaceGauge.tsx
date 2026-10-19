@@ -1,34 +1,30 @@
 "use client";
 
 import { Activity } from "lucide-react";
+import { PACE_LABEL, PACE_LIMITS, paceOf } from "@/lib/pace";
 
 interface PaceGaugeProps {
   wpm: number;
 }
 
 export function PaceGauge({ wpm }: PaceGaugeProps) {
-  // Determine pace status: Slow (<120), Optimal (120-150), Moderately Fast (150-180), Too Fast (>180)
-  let status = "Optimal";
-  let statusBadgeColor = "bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]";
-  let guidance = "Ideal pacing for high-accuracy regional translation.";
-
-  if (wpm < 110) {
-    status = "Slow";
-    statusBadgeColor = "bg-[#EFF6FF] text-[#1E40AF] border-[#BFDBFE]";
-    guidance = "Pace is relaxed; good for complex conceptual breakdowns.";
-  } else if (wpm <= 150) {
-    status = "Optimal";
-    statusBadgeColor = "bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]";
-    guidance = "Optimal pace for real-time Indic translation accuracy.";
-  } else if (wpm <= 180) {
-    status = "Moderately Fast";
-    statusBadgeColor = "bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]";
-    guidance = "Slow slightly for better regional translation accuracy.";
-  } else {
-    status = "Too Fast";
-    statusBadgeColor = "bg-[#FEE2E2] text-[#991B1B] border-[#FECACA]";
-    guidance = "Speech rate exceeding optimal translation window (>180 WPM).";
-  }
+  const pace = paceOf(wpm);
+  const status = PACE_LABEL[pace];
+  const { slow, good, fast } = PACE_LIMITS;
+  const statusBadgeColor = {
+    silent: "bg-[#F1F5F9] text-[#475569] border-[#E2E8F0]",
+    slow: "bg-[#EFF6FF] text-[#1E40AF] border-[#BFDBFE]",
+    good: "bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]",
+    fast: "bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]",
+    too_fast: "bg-[#FEE2E2] text-[#991B1B] border-[#FECACA]",
+  }[pace];
+  const guidance = {
+    silent: "Measured from your captions over the last minute.",
+    slow: "Relaxed pace; good for complex conceptual breakdowns.",
+    good: "Optimal pace for accurate live captions and translation.",
+    fast: "Slow down slightly so captions and translations keep up.",
+    too_fast: `Over ${fast} WPM: captions and translations will lag behind.`,
+  }[pace];
 
   return (
     <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-sm">
@@ -54,17 +50,17 @@ export function PaceGauge({ wpm }: PaceGaugeProps) {
 
       {/* Multi-segment pace gauge bar matching Stitch */}
       <div className="grid grid-cols-4 gap-1.5 h-3 my-3">
-        <div className={`rounded-l-full ${wpm < 110 ? "bg-[#3B82F6]" : "bg-[#DBEAFE]"}`} />
-        <div className={`rounded-none ${wpm >= 110 && wpm <= 150 ? "bg-[#059669]" : "bg-[#D1FAE5]"}`} />
-        <div className={`rounded-none ${wpm > 150 && wpm <= 180 ? "bg-[#D97706]" : "bg-[#FEF3C7]"}`} />
-        <div className={`rounded-r-full ${wpm > 180 ? "bg-[#DC2626]" : "bg-[#FEE2E2]"}`} />
+        <div className={`rounded-l-full ${pace === "slow" ? "bg-[#3B82F6]" : "bg-[#DBEAFE]"}`} />
+        <div className={`rounded-none ${pace === "good" ? "bg-[#059669]" : "bg-[#D1FAE5]"}`} />
+        <div className={`rounded-none ${pace === "fast" ? "bg-[#D97706]" : "bg-[#FEF3C7]"}`} />
+        <div className={`rounded-r-full ${pace === "too_fast" ? "bg-[#DC2626]" : "bg-[#FEE2E2]"}`} />
       </div>
 
       <div className="flex justify-between text-[11px] font-semibold text-[#64748B] mb-3 px-1">
-        <span>Slow</span>
-        <span>Optimal</span>
-        <span className="text-[#0F172A] font-bold">{wpm} WPM</span>
-        <span>Too Fast</span>
+        <span>&lt;{slow}</span>
+        <span>{slow}–{good}</span>
+        <span>{good}–{fast}</span>
+        <span>&gt;{fast}</span>
       </div>
 
       <div className="bg-[#F8FAFC] rounded-xl p-3 border border-[#E2E8F0] flex items-center gap-2">

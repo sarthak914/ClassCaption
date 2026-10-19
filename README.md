@@ -23,7 +23,7 @@ API for **ClassCaption**, an AI classroom companion with live translated caption
    ```
    In a second terminal, watch captions arrive over Realtime the way a student phone would:
    ```bash
-   node --env-file=.env.local scripts/listen.mjs <JOIN_CODE> hi
+   node --env-file=.env.local scripts/listen.mjs <CLASS_ID> hi
    ```
 
 ## Deploy
@@ -48,8 +48,18 @@ scripts/listen.mjs           Realtime listener (acts as a student phone)
 scripts/board.mjs            board capture test: node scripts/board.mjs photo.jpg hi http://127.0.0.1:4000
 ```
 
+## Accounts and joining
+
+- **Teachers** create an account at `/teacher/login` (name, email, password; passwords are hashed with scrypt). A teacher sees and controls only their own classrooms, live classes and recordings. The first teacher to sign up inherits classrooms created before accounts existed.
+- **Students** join at `/join` with the classroom PIN or by scanning the QR code from the teacher's "Join QR" button, and enter their name. The device gets a signed, HttpOnly pass for that classroom only: no account needed. Questions carry the name from the pass (or none, if asked anonymously), so nobody can post as someone else.
+- Teachers can make a **new PIN** at any time; the old one stops working for new joins.
+- Rate limits: PIN attempts (15 per 10 min per network), sign-ins, "I'm lost" (once per 10 s per student), questions, explain and Ask-the-lecture.
+- Browsers can read only `captions` and `class_events` from Supabase (needed for Realtime). PINs, student questions and names, lectures and teacher accounts are only served by the API after a permission check. Announcements, board scans and "class ended" are written by the server, so students can't fake them.
+- `node scripts/demo.mjs` also checks that strangers and students are refused where they should be.
+
 ## Known limits (prototype)
 
-- No login yet. Anyone with a join code can join, and anyone with the URL can call the API.
+- Sessions are signed cookies with no server-side revocation list (signing out clears the cookie; changing `SESSION_SECRET` logs everyone out). Rate limits live in memory, so they reset when the server restarts.
+- Anyone who learns a live class id can read its captions over Realtime; ids are random UUIDs and only shown after joining. The teacher's in-progress (grey) words are broadcast on the same channel without a signature.
 - Uploads are capped at 50 MB by Supabase Storage on the free plan. The server extracts and chunks audio itself (ffmpeg), so Groq's 25 MB limit doesn't apply.
 - Free-tier rate limits on Gemini and Groq apply. The translator chain falls back automatically.

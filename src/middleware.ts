@@ -1,17 +1,24 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-// Allow the frontend to call the API from another origin (e.g. localhost:5173 or a separate Vercel app).
-const CORS = {
-  "access-control-allow-origin": "*",
-  "access-control-allow-methods": "GET,POST,OPTIONS",
-  "access-control-allow-headers": "content-type",
-};
-
+/**
+ * - Teacher pages need a teacher session: without the cookie, go to the sign-in page.
+ *   (The API routes verify the cookie's signature themselves; this is only the redirect.)
+ * - The API is same-origin only, except the health check.
+ */
 export function middleware(req: NextRequest) {
-  if (req.method === "OPTIONS") return new NextResponse(null, { status: 204, headers: CORS });
-  const res = NextResponse.next();
-  for (const [k, v] of Object.entries(CORS)) res.headers.set(k, v);
-  return res;
+  const { pathname } = req.nextUrl;
+  if (pathname.startsWith("/teacher") && pathname !== "/teacher/login" && !req.cookies.has("cc_teacher")) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/teacher/login";
+    url.search = `?next=${encodeURIComponent(pathname)}`;
+    return NextResponse.redirect(url);
+  }
+  if (pathname === "/api/health") {
+    const res = req.method === "OPTIONS" ? new NextResponse(null, { status: 204 }) : NextResponse.next();
+    res.headers.set("access-control-allow-origin", "*");
+    return res;
+  }
+  return NextResponse.next();
 }
 
-export const config = { matcher: "/api/:path*" };
+export const config = { matcher: ["/teacher/:path*", "/api/health"] };

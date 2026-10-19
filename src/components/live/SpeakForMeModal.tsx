@@ -10,13 +10,14 @@ interface SpeakForMeModalProps {
   lectureId: string;
 }
 
+// Things any student might need to say in any lecture; the typed box covers the rest.
 const PRESET_PHRASES = [
-  "Sir, could you please repeat the last code explanation?",
-  "Prof, what is the space complexity of the recursion stack?",
-  "Can you please explain In-order vs Pre-order traversal with a diagram?",
-  "Sir, what happens if the root node is null in base condition?",
-  "Please zoom in on the whiteboard formula.",
-  "Is AVL balance factor checked before or after node insertion?",
+  "Could you please repeat the last point?",
+  "Could you please explain that again more slowly?",
+  "Could you give an example of that?",
+  "Please write that on the board.",
+  "I can't see the board clearly. Could you zoom in or read it out?",
+  "I have a question about this topic.",
 ];
 
 export function SpeakForMeModal({ isOpen, onClose, onSubmit, lectureId }: SpeakForMeModalProps) {
