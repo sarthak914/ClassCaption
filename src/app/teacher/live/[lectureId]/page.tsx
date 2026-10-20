@@ -259,7 +259,7 @@ function TeacherLiveClassroomContent({
   };
 
   /** Whisper path: one recorded phrase, transcribed and translated on the server. */
-  const sendAudio = async (clip: Blob) => {
+  const sendAudio = async (clip: Blob, info?: { speechMs: number; peak: number }) => {
     const c = clsRef.current;
     if (!c || endedRef.current || mutedRef.current) return;
     const form = new FormData();
@@ -267,6 +267,10 @@ function TeacherLiveClassroomContent({
     form.append("seq", String(seqRef.current++));
     form.append("targets", JSON.stringify(captionTargets()));
     form.append("context", JSON.stringify(recentRef.current));
+    if (info) {
+      form.append("speechMs", String(info.speechMs));
+      form.append("peak", info.peak.toFixed(4));
+    }
     try {
       const data = await api<CaptionResponse & { skipped?: boolean }>(`/api/class/${c.id}/transcribe`, { method: "POST", body: form });
       whisperFailsRef.current = 0;
@@ -310,7 +314,7 @@ function TeacherLiveClassroomContent({
         const health = await api<{ env?: { groq?: boolean } }>("/api/health");
         if (cancelled || !health.env?.groq) return;
         const rec = new PhraseRecorder({
-          onPhrase: (clip) => enqueue(() => sendAudio(clip)),
+          onPhrase: (clip, info) => enqueue(() => sendAudio(clip, info)),
           onError: (m) => setCaptionError(m),
         });
         await rec.start();
@@ -398,8 +402,9 @@ function TeacherLiveClassroomContent({
         "service-not-allowed": "Speech service blocked: use Google Chrome",
         "audio-capture": "No microphone found: check Windows sound settings (Input device)",
         network: "Speech service unreachable: Chrome speech recognition needs internet",
+        "language-not-supported": "Chrome can't recognise this language; live captions need the Groq key (Whisper)",
       };
-      const hard = e.error === "not-allowed" || e.error === "service-not-allowed" || e.error === "audio-capture";
+      const hard = ["not-allowed", "service-not-allowed", "audio-capture", "language-not-supported"].includes(e.error);
       if (whisperRef.current) {
         // Whisper has its own mic stream, so captions keep flowing; only the live word preview is lost.
         if (hard) previewOffRef.current = true;

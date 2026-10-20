@@ -32,12 +32,44 @@ export function sourceIsMixed(sourceLang: string) {
   return sourceLang === "en-IN";
 }
 
-/** Teacher speech languages supported by Chrome's Web Speech API. */
-export const SPEECH_LANGS = [
-  { code: "en-IN", label: "English (India) / Hinglish" },
-  { code: "hi-IN", label: "Hindi" },
-  { code: "en-US", label: "English (US)" },
+/**
+ * Languages a teacher can lecture in. `code` is the Chrome Web Speech locale (live word preview),
+ * `whisper` the Whisper language code for the accurate captions (undefined = Whisper auto-detects;
+ * Whisper has no Odia model, so Odia relies on auto-detect plus the translator).
+ */
+export type SpeechLang = { code: string; label: string; short: string; whisper?: string };
+export const SPEECH_LANGS: SpeechLang[] = [
+  { code: "en-IN", label: "Hinglish / Indian English", short: "Hinglish / English", whisper: "en" },
+  { code: "hi-IN", label: "Hindi (incl. Bhojpuri, Haryanvi, Rajasthani, Awadhi…)", short: "Hindi", whisper: "hi" },
+  { code: "en-US", label: "English (US / UK)", short: "English", whisper: "en" },
+  { code: "bn-IN", label: "Bengali", short: "Bengali", whisper: "bn" },
+  { code: "ta-IN", label: "Tamil", short: "Tamil", whisper: "ta" },
+  { code: "te-IN", label: "Telugu", short: "Telugu", whisper: "te" },
+  { code: "mr-IN", label: "Marathi", short: "Marathi", whisper: "mr" },
+  { code: "gu-IN", label: "Gujarati", short: "Gujarati", whisper: "gu" },
+  { code: "kn-IN", label: "Kannada", short: "Kannada", whisper: "kn" },
+  { code: "ml-IN", label: "Malayalam", short: "Malayalam", whisper: "ml" },
+  { code: "pa-IN", label: "Punjabi", short: "Punjabi", whisper: "pa" },
+  { code: "ur-IN", label: "Urdu", short: "Urdu", whisper: "ur" },
+  { code: "or-IN", label: "Odia", short: "Odia" },
 ];
+export const SPEECH_CODES = SPEECH_LANGS.map((l) => l.code);
+
+export function speechLang(code?: string | null): SpeechLang {
+  return SPEECH_LANGS.find((l) => l.code === code) ?? SPEECH_LANGS[0];
+}
+
+/**
+ * A classroom's word list ("names and subject terms", one per line or comma-separated)
+ * → clean, de-duplicated terms. Used in Whisper's prompt and the translator's instructions.
+ */
+export function glossaryTerms(text?: string | null): string[] {
+  const out = (text ?? "")
+    .split(/[\n,;]+/)
+    .map((t) => t.trim().replace(/\s+/g, " ").slice(0, 60))
+    .filter((t) => t.length > 1);
+  return [...new Map(out.map((t) => [t.toLowerCase(), t])).values()].slice(0, 60);
+}
 
 /** UI aliases used by the screens. */
 export type LanguageCode = string;

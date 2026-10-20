@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { supabaseAdmin } from "./supabase/server";
 import { HttpError } from "./http";
-import { baseLang, sourceIsMixed } from "./languages";
+import { baseLang, glossaryTerms, sourceIsMixed } from "./languages";
 import { translate } from "./translate";
 
 export type ClassRow = {
@@ -27,6 +27,7 @@ export type ClassroomRow = {
   description: string | null;
   join_code: string;
   default_source_language: string;
+  glossary?: string | null; // names and subject terms (needs the schema.sql v4 column)
   teacher_id: string | null;
   created_at: string;
 };
@@ -102,7 +103,10 @@ export async function captionsIn(cls: ClassRow, lang: string | null, opts: { sin
   const missing = caps.filter((c) => !c.translations?.[lang]);
   if (missing.length) {
     try {
-      const { result } = await translate(missing.map((c) => c.text), [lang], src, { keepSource: sourceIsMixed(cls.source_lang) });
+      const { result } = await translate(missing.map((c) => c.text), [lang], src, {
+        keepSource: sourceIsMixed(cls.source_lang),
+        glossary: glossaryTerms(cls.classroom?.glossary),
+      });
       await Promise.all(
         missing.map((c, i) => {
           c.translations = { ...(c.translations ?? {}), [lang]: result[lang][i] };
@@ -135,7 +139,7 @@ export async function translateForClass(cls: ClassRow, texts: string[], source?:
   const targets = classTargets(cls).filter((l) => l !== src);
   if (!texts.length || !targets.length) return {};
   try {
-    return (await translate(texts, targets, src, { keepSource: sourceIsMixed(cls.source_lang) })).result;
+    return (await translate(texts, targets, src, { keepSource: sourceIsMixed(cls.source_lang), glossary: glossaryTerms(cls.classroom?.glossary) })).result;
   } catch (e) {
     console.error("event translation failed:", (e as Error).message);
     return {};

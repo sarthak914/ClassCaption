@@ -4,14 +4,17 @@
  * Records the teacher's mic and cuts it into phrases at natural pauses, so each clip is
  * a complete thought for Whisper (no words cut in half) and silence is never uploaded.
  *
- * A clip ends after `pauseMs` of quiet following at least `minSpeechMs` of speech, or at the
- * first short dip after `softMaxMs`, or hard at `hardMaxMs`. The recorder restarts for every
+ * A clip ends after a pause following at least `minSpeechMs` of speech, or at the first short
+ * dip after `softMaxMs`, or hard at `hardMaxMs`. The pause it waits for adapts to the speaker:
+ * about 650 ms for fluent speech, up to 1.2 s for someone who speaks slowly, stutters or has
+ * many short gaps, so their sentences aren't chopped up. The recorder restarts for every
  * clip so each Blob is a standalone, decodable file.
  */
 export type PhraseRecorderOptions = {
-  onPhrase: (clip: Blob, info: { speechMs: number; durationMs: number; startedAt: number }) => void;
+  onPhrase: (clip: Blob, info: { speechMs: number; durationMs: number; startedAt: number; peak: number }) => void;
   onLevel?: (level: number, speaking: boolean) => void;
   onError?: (message: string) => void;
+  /** Fixed pause before cutting; leave unset to adapt to the speaker. */
   pauseMs?: number;
   minSpeechMs?: number;
   softMaxMs?: number;
@@ -35,8 +38,12 @@ export class PhraseRecorder {
   private clipStart = 0;
   private speechMs = 0;
   private quietMs = 0;
+  private peak = 0;
   private noise = 0.004; // running estimate of the room's background level
   private hang = 0; // keeps "speaking" true briefly between syllables
+  // Speaker rhythm (kept across clips): typical length of the short gaps inside their sentences.
+  private gapAvg = 250;
+  private wasSpeaking = false;
 
   constructor(private opts: PhraseRecorderOptions) {}
 
@@ -92,6 +99,7 @@ export class PhraseRecorder {
     this.clipStart = Date.now();
     this.speechMs = 0;
     this.quietMs = 0;
+    this.peak = 0;
   }
 
   private discardClip() {
@@ -113,9 +121,10 @@ export class PhraseRecorder {
     const speechMs = this.speechMs;
     const startedAt = this.clipStart;
     const durationMs = Date.now() - startedAt;
+    const peak = this.peak;
     const chunks = (rec as MediaRecorder & { _chunks?: Blob[] })._chunks ?? [];
     rec.onstop = () => {
-      if (speechMs >= 350) this.opts.onPhrase(new Blob(chunks, { type: rec.mimeType || this.mime || "audio/webm" }), { speechMs, durationMs, startedAt });
+      if (speechMs >= 350) this.opts.onPhrase(new Blob(chunks, { type: rec.mimeType || this.mime || "audio/webm" }), { speechMs, durationMs, startedAt, peak });
     };
     this.recorder = null;
     try {
@@ -131,9 +140,10 @@ export class PhraseRecorder {
     for (let i = 0; i < this.buf.length; i++) sum += this.buf[i] * this.buf[i];
     const rms = Math.sqrt(sum / this.buf.length);
 
-    const threshold = Math.max(0.012, this.noise * 3);
+    // Low floor so soft voices count; the noise-relative part keeps fans and chatter out.
+    const threshold = Math.max(0.007, this.noise * 2.8);
     const loud = rms > threshold;
-    if (loud) this.hang = 200;
+    if (loud) this.hang = 250;
     else this.hang = Math.max(0, this.hang - TICK_MS);
     const speaking = loud || this.hang > 0;
     // Background level: falls quickly to quiet moments, rises only slowly (so a fan or AC still
@@ -142,12 +152,18 @@ export class PhraseRecorder {
     this.opts.onLevel?.(Math.min(1, rms / 0.15), speaking);
 
     if (speaking) {
+      // Learn the speaker's rhythm from the short gaps between their words.
+      if (!this.wasSpeaking && this.speechMs > 0 && this.quietMs > 0 && this.quietMs < 1500) {
+        this.gapAvg = this.gapAvg * 0.85 + this.quietMs * 0.15;
+      }
       this.speechMs += TICK_MS;
       this.quietMs = 0;
+      this.peak = Math.max(this.peak, rms);
     } else this.quietMs += TICK_MS;
+    this.wasSpeaking = speaking;
 
     const age = Date.now() - this.clipStart;
-    const pauseMs = this.opts.pauseMs ?? 600;
+    const pauseMs = this.opts.pauseMs ?? Math.min(1200, Math.max(650, this.gapAvg * 2.5));
     const minSpeech = this.opts.minSpeechMs ?? 1500;
     const softMax = this.opts.softMaxMs ?? 8000;
     const hardMax = this.opts.hardMaxMs ?? 12000;
@@ -157,7 +173,7 @@ export class PhraseRecorder {
       this.discardClip();
       this.newClip();
     } else if (this.speechMs >= minSpeech && this.quietMs >= pauseMs) this.cut();
-    else if (this.speechMs > 0 && this.speechMs < minSpeech && this.quietMs >= 1200) this.cut(); // short remark ("okay, next slide")
+    else if (this.speechMs > 0 && this.speechMs < minSpeech && this.quietMs >= pauseMs + 500) this.cut(); // short remark ("okay, next slide")
     else if (age >= softMax && this.quietMs >= 150) this.cut(); // long sentence: break at a breath
     else if (age >= hardMax) this.cut();
   }

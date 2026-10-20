@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseAdmin } from "./supabase/server";
-import { baseLang, sourceIsMixed } from "./languages";
+import { baseLang, glossaryTerms, sourceIsMixed } from "./languages";
 import { translate } from "./translate";
 import type { CaptionRow, ClassRow } from "./classes";
 
@@ -30,8 +30,9 @@ export async function publishCaption(
   let provider = "none";
   let translateError: string | undefined;
   try {
-    const context = (opts.context ?? []).map((c) => String(c).slice(0, 400)).slice(-3);
-    const r = await translate([text], targets, src, { keepSource: sourceIsMixed(cls.source_lang), context });
+    const previous = (opts.context ?? []).map((c) => String(c).slice(0, 400)).slice(-3);
+    const glossary = glossaryTerms(cls.classroom?.glossary);
+    const r = await translate([text], targets, src, { keepSource: sourceIsMixed(cls.source_lang), previous, glossary });
     provider = r.provider;
     translations = Object.fromEntries(Object.entries(r.result).map(([k, v]) => [k, v[0]]));
   } catch (e) {

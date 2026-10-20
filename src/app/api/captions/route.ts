@@ -1,6 +1,7 @@
 import { body, HttpError, need, ok, route } from "@/lib/http";
 import { classForTeacher } from "@/lib/access";
 import { publishCaption } from "@/lib/captions";
+import { tidySpeech } from "@/lib/speech";
 
 /**
  * POST /api/captions  { classId, text, seq?, offsetS?, targets?, context? }
@@ -11,7 +12,7 @@ export const POST = route(async (req: Request) => {
   const t0 = Date.now();
   const b = await body<{ classId?: string; text?: string; seq?: number; offsetS?: number; targets?: string[]; context?: string[] }>(req);
   const classId = need(b.classId, "classId is required");
-  const text = need(b.text?.trim().slice(0, 2000), "text is required");
+  const text = need(tidySpeech(b.text ?? "").slice(0, 2000), "text is required");
   const { cls } = await classForTeacher(classId);
   if (cls.status !== "live") throw new HttpError(409, "Class has ended");
 

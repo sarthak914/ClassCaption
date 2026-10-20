@@ -175,5 +175,10 @@ drop policy if exists "public read" on public.reactions;
 drop policy if exists "public read" on public.lectures;
 drop policy if exists "public read" on public.segments;
 
+-- ---------------------------------------------------------------------------
+-- v4: per-classroom word list (names and subject terms, one per line) that speech recognition
+-- and translation always spell the same way.
+alter table public.classrooms add column if not exists glossary text;
+
 -- Make the API see the new tables/columns right away.
 notify pgrst, 'reload schema';

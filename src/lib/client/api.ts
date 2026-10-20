@@ -1,5 +1,7 @@
 "use client";
 
+import { speechLang } from "../languages";
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -58,10 +60,7 @@ export function speak(text: string, lang = "en-IN", rate = 1, onEnd?: () => void
 }
 
 export function sourceLabel(sourceLang?: string | null) {
-  if (!sourceLang) return "Hinglish / English";
-  if (sourceLang.startsWith("hi")) return "Hindi";
-  if (sourceLang === "en-IN") return "Hinglish / English";
-  return "English";
+  return speechLang(sourceLang).short;
 }
 
 /**
