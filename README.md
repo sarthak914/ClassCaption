@@ -30,6 +30,22 @@ API for **ClassCaption**, an AI classroom companion with live translated caption
 
 Push to GitHub, import the repo in Vercel, add the environment variables, then deploy. Run `node scripts/demo.mjs https://<app>.vercel.app` against the deployment.
 
+## Docker
+
+One image works for any Supabase project: keys are read when the container starts, never baked into the image (`.env*` is excluded from the build).
+
+```bash
+docker compose up --build -d          # builds and starts on http://localhost:3000
+docker compose logs -f                # watch it
+docker compose down                   # stop
+```
+
+Or without compose: `docker build -t classcaption .` then `docker run -p 3000:3000 --env-file .env.local classcaption`.
+
+- **Join QR code:** inside Docker the app can't see the laptop's Wi-Fi address, so add `PUBLIC_BASE_URL=http://<laptop-wifi-ip>:3000` to `.env.local` (find the IP with `ipconfig`).
+- **Teacher mic:** open the teacher page at `http://localhost:3000` on the laptop running Docker; browsers only allow the microphone on localhost or https.
+- **Publish to Docker Hub:** `docker login`, then `docker tag classcaption <your-user>/classcaption:latest` and `docker push <your-user>/classcaption:latest`. Anyone can then run it with their own `.env.local`. The image holds no keys.
+
 ## Translation providers
 
 `TRANSLATION_PROVIDERS` sets the order (default `bhashini,groq,gemini,google`: Groq is fastest for live captions). A provider is skipped when its keys are missing, and each one falls back to the next on error or timeout, so captions keep flowing even if a free-tier rate limit is hit. When the Bhashini keys arrive, set `BHASHINI_USER_ID` and `BHASHINI_API_KEY` and it becomes the first choice automatically. The code is in `src/lib/translate/`.

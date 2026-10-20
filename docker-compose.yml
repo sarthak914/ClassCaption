@@ -1,0 +1,11 @@
+# docker compose up --build -d   →   http://localhost:3000 (phones: http://<laptop-wifi-ip>:3000)
+# Keys come from .env.local at run time. Inside Docker the app can't see the laptop's Wi-Fi address,
+# so add PUBLIC_BASE_URL=http://<laptop-wifi-ip>:3000 to .env.local for the join QR code.
+services:
+  classcaption:
+    build: .
+    image: classcaption:latest
+    ports:
+      - "3000:3000"
+    env_file: .env.local
+    restart: unless-stopped
