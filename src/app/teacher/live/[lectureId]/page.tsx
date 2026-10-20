@@ -8,6 +8,7 @@ import { ConfusionMeter } from "@/components/live/ConfusionMeter";
 import { createClient } from "@/lib/supabase/client";
 import { api, isUuid, needsAuth, speak } from "@/lib/client/api";
 import { JoinQrModal } from "@/components/join/JoinQrModal";
+import { PhraseRecorder } from "@/lib/client/phraseRecorder";
 import {
   Mic,
   MicOff,
@@ -140,6 +141,18 @@ function TeacherLiveClassroomContent({
   const readersRef = useRef<Record<string, number>>({});
   const seenReactionsRef = useRef<Set<string> | null>(null);
   const lostRef = useRef(0);
+  // Caption capture
+  const [captureMode, setCaptureMode] = useState<"whisper" | "browser">("browser");
+  const recorderRef = useRef<PhraseRecorder | null>(null);
+  const whisperRef = useRef(false);
+  const whisperFailsRef = useRef(0);
+  const queueRef = useRef<Promise<void>>(Promise.resolve());
+  const recentRef = useRef<string[]>([]);
+  const phraseBufRef = useRef("");
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingInterimRef = useRef("");
+  const previewOffRef = useRef(false); // Chrome speech unavailable while Whisper runs: no live preview
+  const autoMutedRef = useRef(false); // muted because Chrome speech failed, not by the teacher
 
   // Resolve the class: a real class id, or "classroom-<id>" (start one in that classroom).
   useEffect(() => {
@@ -196,45 +209,139 @@ function TeacherLiveClassroomContent({
     return `${h}:${m}:${s}`;
   };
 
+  type CaptionResponse = {
+    caption: { text: string; translations: Record<string, string> };
+    provider: string;
+    latency_ms: number;
+    translateError?: string;
+  };
+
+  // Captions go out one at a time, so they always reach students in the order they were spoken.
+  const enqueue = (job: () => Promise<void>) => {
+    queueRef.current = queueRef.current.then(job, job);
+  };
+  const captionTargets = () => [...new Set([...Object.keys(readersRef.current), ...FEED_LANGS])];
+
+  const applyCaption = (data: CaptionResponse, via: string) => {
+    recentRef.current = [...recentRef.current, data.caption.text].slice(-3);
+    setTeacherAudio(data.caption.text);
+    setSent((p) => ({ ok: p.ok + 1, total: p.total + 1 }));
+    setLatencyMs(data.latency_ms);
+    setProvider(`${via} + ${data.provider}`);
+    setCaptionError(data.translateError ? "Translation failed; original text sent" : "");
+    const tr = data.caption.translations ?? {};
+    setFeeds((prev) => {
+      const next = { ...prev };
+      for (const l of FEED_LANGS) {
+        next[l] = {
+          ...prev[l],
+          text: tr[l] || (l === "en" ? data.caption.text : prev[l].text),
+          status: tr[l] ? `${data.provider} • ${data.latency_ms} ms` : prev[l].status,
+        };
+      }
+      return next;
+    });
+  };
+
+  /** Browser speech path (fallback): text recognised by Chrome. */
   const sendCaption = async (text: string) => {
     const c = clsRef.current;
     if (!c || endedRef.current) return;
-    const seq = seqRef.current++;
-    setSent((p) => ({ ...p, total: p.total + 1 }));
     try {
-      const data = await api<{
-        caption: { text: string; translations: Record<string, string> };
-        provider: string;
-        latency_ms: number;
-        translateError?: string;
-      }>("/api/captions", {
-        json: {
-          classId: c.id,
-          text,
-          seq,
-          targets: [...new Set([...Object.keys(readersRef.current), ...FEED_LANGS])],
-        },
+      const data = await api<CaptionResponse>("/api/captions", {
+        json: { classId: c.id, text, seq: seqRef.current++, targets: captionTargets(), context: recentRef.current },
       });
-      setSent((p) => ({ ...p, ok: p.ok + 1 }));
-      setLatencyMs(data.latency_ms);
-      setProvider(data.provider);
-      setCaptionError(data.translateError ? "Translation failed; original text sent" : "");
-      const tr = data.caption.translations ?? {};
-      setFeeds((prev) => {
-        const next = { ...prev };
-        for (const l of FEED_LANGS) {
-          next[l] = {
-            ...prev[l],
-            text: tr[l] || (l === "en" ? data.caption.text : prev[l].text),
-            status: tr[l] ? `${data.provider} • ${data.latency_ms} ms` : prev[l].status,
-          };
-        }
-        return next;
-      });
+      applyCaption(data, "Chrome speech");
     } catch (err) {
+      setSent((p) => ({ ...p, total: p.total + 1 }));
       setCaptionError((err as Error).message);
     }
   };
+
+  /** Whisper path: one recorded phrase, transcribed and translated on the server. */
+  const sendAudio = async (clip: Blob) => {
+    const c = clsRef.current;
+    if (!c || endedRef.current || mutedRef.current) return;
+    const form = new FormData();
+    form.append("audio", clip, "phrase.webm");
+    form.append("seq", String(seqRef.current++));
+    form.append("targets", JSON.stringify(captionTargets()));
+    form.append("context", JSON.stringify(recentRef.current));
+    try {
+      const data = await api<CaptionResponse & { skipped?: boolean }>(`/api/class/${c.id}/transcribe`, { method: "POST", body: form });
+      whisperFailsRef.current = 0;
+      if (!data.skipped) applyCaption(data, "Whisper");
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      if (status === 409 || endedRef.current) return;
+      whisperFailsRef.current += 1;
+      if (status === 501 || whisperFailsRef.current >= 3) {
+        // Groq unavailable: Chrome's own speech recognition takes over the final captions.
+        whisperRef.current = false;
+        setCaptureMode("browser");
+        recorderRef.current?.stop(false);
+        recorderRef.current = null;
+        setCaptionError(`Accurate (Whisper) mode stopped: ${(err as Error).message}. Using Chrome speech instead.`);
+      } else setCaptionError((err as Error).message);
+    }
+  };
+
+  // Chrome speech fallback: join short final fragments into one phrase so it translates with its meaning intact.
+  const flushBrowserPhrase = () => {
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    flushTimerRef.current = null;
+    const text = phraseBufRef.current.trim();
+    phraseBufRef.current = "";
+    if (text) enqueue(() => sendCaption(text));
+  };
+  const addBrowserFinal = (text: string) => {
+    phraseBufRef.current = `${phraseBufRef.current} ${text}`.trim();
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    if (phraseBufRef.current.split(/\s+/).length >= 25) flushBrowserPhrase();
+    else flushTimerRef.current = setTimeout(flushBrowserPhrase, 700);
+  };
+
+  // Accurate capture: record the mic in phrases and transcribe with Whisper large-v3 (Groq), when the server has a key.
+  useEffect(() => {
+    if (!cls || typeof window === "undefined" || !window.isSecureContext || !PhraseRecorder.supported()) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const health = await api<{ env?: { groq?: boolean } }>("/api/health");
+        if (cancelled || !health.env?.groq) return;
+        const rec = new PhraseRecorder({
+          onPhrase: (clip) => enqueue(() => sendAudio(clip)),
+          onError: (m) => setCaptionError(m),
+        });
+        await rec.start();
+        if (cancelled) return rec.stop(false);
+        if (autoMutedRef.current) {
+          // Chrome speech failed before Whisper was ready; Whisper has the mic, so un-mute.
+          autoMutedRef.current = false;
+          previewOffRef.current = true;
+          mutedRef.current = false;
+          setMicMuted(false);
+        }
+        rec.setPaused(mutedRef.current);
+        recorderRef.current = rec;
+        whisperRef.current = true;
+        phraseBufRef.current = ""; // Whisper owns the final captions from here
+        setCaptureMode("whisper");
+        setMicSupported(true);
+        setMicError("");
+        if (!mutedRef.current) setIsRecording(true);
+      } catch (err) {
+        if (!cancelled) setCaptionError(`Accurate (Whisper) mode unavailable: ${(err as Error).message}. Using Chrome speech.`);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      whisperRef.current = false;
+      recorderRef.current?.stop(false);
+      recorderRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cls]);
 
   // Web Speech API Live Microphone Recognition
   useEffect(() => {
@@ -263,6 +370,7 @@ function TeacherLiveClassroomContent({
         if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
         else interimText += event.results[i][0].transcript;
       }
+      pendingInterimRef.current = interimText;
       if (interimText) {
         setTeacherAudio(interimText);
         // Let students see the words forming before the translation lands.
@@ -271,9 +379,10 @@ function TeacherLiveClassroomContent({
           channelRef.current?.send({ type: "broadcast", event: "interim", payload: { text: interimText } });
         }
       }
-      if (finalTranscript.trim()) {
+      // With Whisper on, Chrome only drives the live preview; Whisper sends the final captions.
+      if (finalTranscript.trim() && !whisperRef.current) {
         setTeacherAudio(finalTranscript.trim());
-        sendCaption(finalTranscript.trim());
+        addBrowserFinal(finalTranscript.trim());
       }
     };
     let lastError = "";
@@ -290,22 +399,36 @@ function TeacherLiveClassroomContent({
         "audio-capture": "No microphone found: check Windows sound settings (Input device)",
         network: "Speech service unreachable: Chrome speech recognition needs internet",
       };
+      const hard = e.error === "not-allowed" || e.error === "service-not-allowed" || e.error === "audio-capture";
+      if (whisperRef.current) {
+        // Whisper has its own mic stream, so captions keep flowing; only the live word preview is lost.
+        if (hard) previewOffRef.current = true;
+        return;
+      }
       setMicError(msg[e.error] ?? `Mic error: ${e.error}`);
-      if (e.error === "not-allowed" || e.error === "service-not-allowed" || e.error === "audio-capture") {
+      if (hard) {
+        autoMutedRef.current = true;
         mutedRef.current = true;
         setMicMuted(true);
       }
     };
     // Chrome ends recognition after silence; keep it running until muted or ended.
     recognition.onend = () => {
-      setIsRecording(false);
+      if (!whisperRef.current) setIsRecording(false);
+      if (previewOffRef.current) return;
+      // Chrome restarts recognition every minute or so; words still "in progress" never become final, so keep them.
+      if (!whisperRef.current && !mutedRef.current && !endedRef.current) {
+        if (pendingInterimRef.current.trim()) addBrowserFinal(pendingInterimRef.current.trim());
+        flushBrowserPhrase();
+      }
+      pendingInterimRef.current = "";
       if (!stopped && !mutedRef.current && !endedRef.current) {
         setTimeout(() => {
           if (stopped || mutedRef.current || endedRef.current) return;
           try {
             recognition.start();
           } catch {}
-        }, lastError === "network" ? 2000 : 250);
+        }, lastError === "network" ? 2000 : 100);
         lastError = "";
       }
     };
@@ -326,7 +449,11 @@ function TeacherLiveClassroomContent({
   const toggleMic = () => {
     const next = !micMuted;
     mutedRef.current = next;
+    autoMutedRef.current = false;
     setMicMuted(next);
+    recorderRef.current?.setPaused(next);
+    if (!next && whisperRef.current) setIsRecording(true);
+    if (next) flushBrowserPhrase();
     const r = recognitionRef.current;
     if (!r) return;
     try {
@@ -432,6 +559,7 @@ function TeacherLiveClassroomContent({
     if (confirm("Are you sure you want to end this lecture? AI notes will be generated immediately.")) {
       try {
         endedRef.current = true;
+        recorderRef.current?.stop(false);
         try {
           recognitionRef.current?.stop();
         } catch {}
@@ -576,7 +704,9 @@ function TeacherLiveClassroomContent({
                   : micMuted
                   ? "Mic Muted"
                   : isRecording
-                  ? "Clear Audio Signal"
+                  ? captureMode === "whisper"
+                    ? "Accurate captions (Whisper)"
+                    : "Clear Audio Signal (Chrome speech)"
                   : "Starting Mic..."}
               </span>
             </div>

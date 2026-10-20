@@ -9,26 +9,37 @@ function key() {
   return k;
 }
 
-export type WhisperSegment = { start: number; end: number; text: string };
+export type WhisperSegment = { start: number; end: number; text: string; noSpeechProb?: number; avgLogprob?: number; compressionRatio?: number };
 
-/** Speech-to-text with Whisper large-v3 on Groq. Max 25 MB on the free tier. */
-export async function transcribe(file: Blob, filename: string, language?: string) {
+/**
+ * Speech-to-text with Whisper large-v3 on Groq. Max 25 MB on the free tier.
+ * `prompt` (vocabulary / previous sentence / spelling style) steers recognition of names and terms.
+ */
+export async function transcribe(file: Blob, filename: string, language?: string, opts: { prompt?: string; timeoutMs?: number } = {}) {
   const form = new FormData();
   form.append("file", file, filename);
   form.append("model", "whisper-large-v3");
   form.append("response_format", "verbose_json");
   form.append("temperature", "0");
   if (language) form.append("language", language);
+  if (opts.prompt) form.append("prompt", opts.prompt.slice(0, 800));
   const res = await fetch(`${BASE}/audio/transcriptions`, {
     method: "POST",
     headers: { authorization: `Bearer ${key()}` },
     body: form,
-    signal: AbortSignal.timeout(120000),
+    signal: AbortSignal.timeout(opts.timeoutMs ?? 120000),
   });
   if (!res.ok) throw new Error(`Groq Whisper ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const data = await res.json();
   const segments: WhisperSegment[] = (data.segments ?? []).map(
-    (s: { start: number; end: number; text: string }) => ({ start: s.start, end: s.end, text: s.text.trim() }),
+    (s: { start: number; end: number; text: string; no_speech_prob?: number; avg_logprob?: number; compression_ratio?: number }) => ({
+      start: s.start,
+      end: s.end,
+      text: s.text.trim(),
+      noSpeechProb: s.no_speech_prob,
+      avgLogprob: s.avg_logprob,
+      compressionRatio: s.compression_ratio,
+    }),
   );
   return { text: data.text as string, language: data.language as string, duration: data.duration as number, segments };
 }

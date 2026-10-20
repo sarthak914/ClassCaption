@@ -241,7 +241,10 @@ function StudentLiveLectureContent({
           const lang = langRef.current;
           setActiveSpokenText(c.text);
           lastSeqRef.current = Math.max(lastSeqRef.current, c.seq);
-          setCaptions((prev) => (prev.some((p) => p.seq === c.seq) ? prev : [...prev, toEvent(c, lang)].slice(-60)));
+          // Keep spoken order even if a slower translation lands after a later line.
+          setCaptions((prev) =>
+            prev.some((p) => p.seq === c.seq) ? prev : [...prev, toEvent(c, lang)].sort((a, b) => a.seq - b.seq).slice(-60),
+          );
           // Language nobody else reads yet: fetch this line in my language.
           if (!c.translations?.[lang]) {
             api<{ captions: CaptionRow[] }>(`/api/class/${classId}?lang=${lang}&since=${c.seq - 1}&limit=1`)
