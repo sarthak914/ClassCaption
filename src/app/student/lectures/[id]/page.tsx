@@ -220,6 +220,40 @@ function RecordedLectureContent({
   const subtitleSize = textSize === "sm" ? "text-xs" : textSize === "lg" ? "text-lg" : "text-sm";
   const conceptNotes = selectedCaptionLang === "en" ? notesEn : notes;
 
+  // Quiz results are saved for signed-in student accounts (best score shows on the dashboard).
+  const [quizSaved, setQuizSaved] = useState<{ best: number; total: number; attempts: number } | null>(null);
+  const [quizAccount, setQuizAccount] = useState<boolean | null>(null);
+  const [quizJustSaved, setQuizJustSaved] = useState(false);
+  useEffect(() => {
+    if (!lecture || !ready || role !== "student") return;
+    api<{ attempt: { best: number; total: number; attempts: number } | null; account: boolean }>(`/api/lectures/${lecture.id}/quiz`)
+      .then((d) => {
+        setQuizSaved(d.attempt);
+        setQuizAccount(d.account);
+      })
+      .catch(() => {});
+  }, [lecture?.id, ready, role]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Each language has its own quiz, so switching language starts it fresh.
+  useEffect(() => {
+    setAnswers({});
+    setQuizJustSaved(false);
+  }, [selectedCaptionLang]);
+  const quizLen = conceptNotes?.quiz.length ?? 0;
+  const answeredAll = quizLen > 0 && Object.keys(answers).length === quizLen;
+  useEffect(() => {
+    if (!answeredAll || !lecture || role !== "student") return;
+    api<{ saved: boolean; best?: number; total: number; attempts?: number }>(`/api/lectures/${lecture.id}/quiz`, {
+      json: { lang: selectedCaptionLang, answers: Array.from({ length: quizLen }, (_, i) => answers[i]) },
+    })
+      .then((r) => {
+        if (r.saved) {
+          setQuizSaved({ best: r.best ?? 0, total: r.total, attempts: r.attempts ?? 1 });
+          setQuizJustSaved(true);
+        }
+      })
+      .catch(() => {});
+  }, [answeredAll]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const playAudioNarration = () => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       if (isNarrating) {
@@ -804,6 +838,20 @@ function RecordedLectureContent({
                     </span>
                   )}
                 </div>
+                {quizSaved && (
+                  <p className="text-xs font-semibold text-[#065F46] bg-[#ECFDF5] border border-[#A7F3D0] rounded-xl px-3 py-2">
+                    {quizJustSaved ? "Saved to your account. " : ""}Your best: {quizSaved.best}/{quizSaved.total} ({quizSaved.attempts} attempt
+                    {quizSaved.attempts === 1 ? "" : "s"})
+                  </p>
+                )}
+                {answeredAll && quizAccount === false && role === "student" && (
+                  <p className="text-xs text-[#475569]">
+                    <Link href={`/student/login?next=${encodeURIComponent(`/student/lectures/${id}?tab=quiz`)}`} className="font-bold text-[#1E3A8A] underline">
+                      Sign in
+                    </Link>{" "}
+                    to save your quiz scores.
+                  </p>
+                )}
                 {!conceptNotes && <p className="text-xs text-[#64748B]">{notesLoading ? "Writing the quiz..." : "The quiz is generated with the AI notes."}</p>}
                 {conceptNotes?.quiz.map((q, qi) => {
                   const picked = answers[qi];
@@ -837,7 +885,13 @@ function RecordedLectureContent({
                   );
                 })}
                 {conceptNotes && Object.keys(answers).length > 0 && (
-                  <button onClick={() => setAnswers({})} className="text-xs font-bold text-[#1E3A8A] hover:underline">
+                  <button
+                    onClick={() => {
+                      setAnswers({});
+                      setQuizJustSaved(false);
+                    }}
+                    className="text-xs font-bold text-[#1E3A8A] hover:underline"
+                  >
                     Try the quiz again
                   </button>
                 )}

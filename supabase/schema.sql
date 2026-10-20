@@ -202,5 +202,20 @@ create table if not exists public.enrollments (
 create index if not exists enrollments_classroom on public.enrollments(classroom_id);
 alter table public.enrollments enable row level security;
 
+-- A student's quiz result per lecture (last and best score), shown on their dashboard.
+create table if not exists public.quiz_attempts (
+  student_id uuid not null references public.students(id) on delete cascade,
+  lecture_id uuid not null references public.lectures(id) on delete cascade,
+  lang       text not null default 'en',
+  score      int  not null,
+  total      int  not null,
+  best       int  not null,
+  attempts   int  not null default 1,
+  answers    jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now(),
+  primary key (student_id, lecture_id)
+);
+alter table public.quiz_attempts enable row level security;  -- server only
+
 -- Make the API see the new tables/columns right away.
 notify pgrst, 'reload schema';

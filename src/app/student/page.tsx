@@ -18,7 +18,16 @@ type Room = {
   live_class: { id: string; title: string; started_at: string } | null;
   lecture_count: number;
 };
-type LectureItem = { id: string; title: string; status: string; source: string; duration_s: number | null; created_at: string; classroom_id: string | null };
+type LectureItem = {
+  id: string;
+  title: string;
+  status: string;
+  source: string;
+  duration_s: number | null;
+  created_at: string;
+  classroom_id: string | null;
+  quiz?: { best: number; total: number } | null; // my best saved quiz score (student accounts)
+};
 type Term = { term: string; meaning: string };
 type Home = {
   student: { name: string; account: boolean; email: string | null; roll_no: string | null } | null;
@@ -461,7 +470,18 @@ function LectureLibrary({ lectures, rooms }: { lectures: LectureItem[]; rooms: R
           return (
             <div key={l.id} className="p-3.5 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC]">
               <Link href={href} className="block min-w-0 group">
-                <span className="font-bold text-sm text-[#0F172A] group-hover:text-[#1E3A8A] truncate block">{l.title}</span>
+                <span className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-sm text-[#0F172A] group-hover:text-[#1E3A8A] truncate">{l.title}</span>
+                  {l.quiz && (
+                    <span
+                      className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
+                        l.quiz.best === l.quiz.total ? "bg-[#ECFDF5] text-[#065F46]" : "bg-[#FEF3C7] text-[#92400E]"
+                      }`}
+                    >
+                      Quiz {l.quiz.best}/{l.quiz.total}
+                    </span>
+                  )}
+                </span>
                 <span className="text-[11px] text-[#64748B] truncate block">
                   {[roomName(l.classroom_id), new Date(l.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }), fmtDuration(l.duration_s), l.source === "live" ? "Live class" : "Recording"]
                     .filter(Boolean)
