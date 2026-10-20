@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Self-contained server in .next/standalone (used by the Docker image).
+  output: "standalone",
   // Pin the project root so a stray package-lock.json in a parent folder doesn't confuse Next.js.
   outputFileTracingRoot: process.cwd(),
   // Keep the ffmpeg binary as a real file on disk instead of bundling it.

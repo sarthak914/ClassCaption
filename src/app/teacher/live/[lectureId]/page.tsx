@@ -6,7 +6,9 @@ import { Navbar } from "@/components/navigation/Navbar";
 import { PaceGauge } from "@/components/live/PaceGauge";
 import { ConfusionMeter } from "@/components/live/ConfusionMeter";
 import { createClient } from "@/lib/supabase/client";
-import { api, isUuid, speak } from "@/lib/client/api";
+import { api, isUuid, needsAuth, speak } from "@/lib/client/api";
+import { JoinQrModal } from "@/components/join/JoinQrModal";
+import { PhraseRecorder } from "@/lib/client/phraseRecorder";
 import {
   Mic,
   MicOff,
@@ -24,6 +26,7 @@ import {
   AlertTriangle,
   Play,
   Layers,
+  ShieldAlert,
 } from "lucide-react";
 
 interface QuestionItem {
@@ -107,6 +110,8 @@ function TeacherLiveClassroomContent({
   const [sent, setSent] = useState({ ok: 0, total: 0 });
   const [captionError, setCaptionError] = useState("");
   const [ttsQueue, setTtsQueue] = useState(0);
+  const [streamed, setStreamed] = useState(0);
+  const [showQr, setShowQr] = useState(false);
 
   // Board capture
   const [scanning, setScanning] = useState(false);
@@ -124,6 +129,7 @@ function TeacherLiveClassroomContent({
 
   // Questions Queue
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
+  const [blocked, setBlocked] = useState<{ count: number; students: { name: string; count: number }[] }>({ count: 0, students: [] });
 
   const recognitionRef = useRef<any>(null);
   const channelRef = useRef<any>(null);
@@ -133,17 +139,30 @@ function TeacherLiveClassroomContent({
   const endedRef = useRef(false);
   const lastInterimRef = useRef(0);
   const readersRef = useRef<Record<string, number>>({});
+  const seenReactionsRef = useRef<Set<string> | null>(null);
+  const lostRef = useRef(0);
+  // Caption capture
+  const [captureMode, setCaptureMode] = useState<"whisper" | "browser">("browser");
+  const recorderRef = useRef<PhraseRecorder | null>(null);
+  const whisperRef = useRef(false);
+  const whisperFailsRef = useRef(0);
+  const queueRef = useRef<Promise<void>>(Promise.resolve());
+  const recentRef = useRef<string[]>([]);
+  const phraseBufRef = useRef("");
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingInterimRef = useRef("");
+  const previewOffRef = useRef(false); // Chrome speech unavailable while Whisper runs: no live preview
+  const autoMutedRef = useRef(false); // muted because Chrome speech failed, not by the teacher
 
-  // Resolve the class: a real class id, "classroom-<id>" (start one there), or a demo link (start a fresh one).
+  // Resolve the class: a real class id, or "classroom-<id>" (start one in that classroom).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         if (!isUuid(lectureId)) {
-          const classroomId = lectureId.startsWith("classroom-") ? lectureId.slice("classroom-".length) : undefined;
-          const started = await api<{ class: ClassInfo }>("/api/class/start", {
-            json: classroomId ? { classroomId } : { title: "Live Lecture" },
-          });
+          const classroomId = lectureId.startsWith("classroom-") ? lectureId.slice("classroom-".length) : "";
+          if (!isUuid(classroomId)) throw new Error("Start a live class from your dashboard.");
+          const started = await api<{ class: ClassInfo }>("/api/class/start", { json: { classroomId } });
           if (!cancelled) router.replace(`/teacher/live/${started.class.id}`);
           return;
         }
@@ -158,6 +177,7 @@ function TeacherLiveClassroomContent({
         clsRef.current = data.class;
         setCls(data.class);
       } catch (err) {
+        if (needsAuth(err)) return router.replace(`/teacher/login?next=${encodeURIComponent(`/teacher/live/${lectureId}`)}`);
         if (!cancelled) setLoadError((err as Error).message);
       }
     })();
@@ -189,45 +209,143 @@ function TeacherLiveClassroomContent({
     return `${h}:${m}:${s}`;
   };
 
+  type CaptionResponse = {
+    caption: { text: string; translations: Record<string, string> };
+    provider: string;
+    latency_ms: number;
+    translateError?: string;
+  };
+
+  // Captions go out one at a time, so they always reach students in the order they were spoken.
+  const enqueue = (job: () => Promise<void>) => {
+    queueRef.current = queueRef.current.then(job, job);
+  };
+  const captionTargets = () => [...new Set([...Object.keys(readersRef.current), ...FEED_LANGS])];
+
+  const applyCaption = (data: CaptionResponse, via: string) => {
+    recentRef.current = [...recentRef.current, data.caption.text].slice(-3);
+    setTeacherAudio(data.caption.text);
+    setSent((p) => ({ ok: p.ok + 1, total: p.total + 1 }));
+    setLatencyMs(data.latency_ms);
+    setProvider(`${via} + ${data.provider}`);
+    setCaptionError(data.translateError ? "Translation failed; original text sent" : "");
+    const tr = data.caption.translations ?? {};
+    setFeeds((prev) => {
+      const next = { ...prev };
+      for (const l of FEED_LANGS) {
+        next[l] = {
+          ...prev[l],
+          text: tr[l] || (l === "en" ? data.caption.text : prev[l].text),
+          status: tr[l] ? `${data.provider} • ${data.latency_ms} ms` : prev[l].status,
+        };
+      }
+      return next;
+    });
+  };
+
+  /** Browser speech path (fallback): text recognised by Chrome. */
   const sendCaption = async (text: string) => {
     const c = clsRef.current;
     if (!c || endedRef.current) return;
-    const seq = seqRef.current++;
-    setSent((p) => ({ ...p, total: p.total + 1 }));
     try {
-      const data = await api<{
-        caption: { text: string; translations: Record<string, string> };
-        provider: string;
-        latency_ms: number;
-        translateError?: string;
-      }>("/api/captions", {
-        json: {
-          classId: c.id,
-          text,
-          seq,
-          targets: [...new Set([...Object.keys(readersRef.current), ...FEED_LANGS])],
-        },
+      const data = await api<CaptionResponse>("/api/captions", {
+        json: { classId: c.id, text, seq: seqRef.current++, targets: captionTargets(), context: recentRef.current },
       });
-      setSent((p) => ({ ...p, ok: p.ok + 1 }));
-      setLatencyMs(data.latency_ms);
-      setProvider(data.provider);
-      setCaptionError(data.translateError ? "Translation failed; original text sent" : "");
-      const tr = data.caption.translations ?? {};
-      setFeeds((prev) => {
-        const next = { ...prev };
-        for (const l of FEED_LANGS) {
-          next[l] = {
-            ...prev[l],
-            text: tr[l] || (l === "en" ? data.caption.text : prev[l].text),
-            status: tr[l] ? `${data.provider} • ${data.latency_ms} ms` : prev[l].status,
-          };
-        }
-        return next;
-      });
+      applyCaption(data, "Chrome speech");
     } catch (err) {
+      setSent((p) => ({ ...p, total: p.total + 1 }));
       setCaptionError((err as Error).message);
     }
   };
+
+  /** Whisper path: one recorded phrase, transcribed and translated on the server. */
+  const sendAudio = async (clip: Blob, info?: { speechMs: number; peak: number }) => {
+    const c = clsRef.current;
+    if (!c || endedRef.current || mutedRef.current) return;
+    const form = new FormData();
+    form.append("audio", clip, "phrase.webm");
+    form.append("seq", String(seqRef.current++));
+    form.append("targets", JSON.stringify(captionTargets()));
+    form.append("context", JSON.stringify(recentRef.current));
+    if (info) {
+      form.append("speechMs", String(info.speechMs));
+      form.append("peak", info.peak.toFixed(4));
+    }
+    try {
+      const data = await api<CaptionResponse & { skipped?: boolean }>(`/api/class/${c.id}/transcribe`, { method: "POST", body: form });
+      whisperFailsRef.current = 0;
+      if (!data.skipped) applyCaption(data, "Whisper");
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      if (status === 409 || endedRef.current) return;
+      whisperFailsRef.current += 1;
+      if (status === 501 || whisperFailsRef.current >= 3) {
+        // Groq unavailable: Chrome's own speech recognition takes over the final captions.
+        whisperRef.current = false;
+        setCaptureMode("browser");
+        recorderRef.current?.stop(false);
+        recorderRef.current = null;
+        setCaptionError(`Accurate (Whisper) mode stopped: ${(err as Error).message}. Using Chrome speech instead.`);
+      } else setCaptionError((err as Error).message);
+    }
+  };
+
+  // Chrome speech fallback: join short final fragments into one phrase so it translates with its meaning intact.
+  const flushBrowserPhrase = () => {
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    flushTimerRef.current = null;
+    const text = phraseBufRef.current.trim();
+    phraseBufRef.current = "";
+    if (text) enqueue(() => sendCaption(text));
+  };
+  const addBrowserFinal = (text: string) => {
+    phraseBufRef.current = `${phraseBufRef.current} ${text}`.trim();
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    if (phraseBufRef.current.split(/\s+/).length >= 25) flushBrowserPhrase();
+    else flushTimerRef.current = setTimeout(flushBrowserPhrase, 700);
+  };
+
+  // Accurate capture: record the mic in phrases and transcribe with Whisper large-v3 (Groq), when the server has a key.
+  useEffect(() => {
+    if (!cls || typeof window === "undefined" || !window.isSecureContext || !PhraseRecorder.supported()) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const health = await api<{ env?: { groq?: boolean } }>("/api/health");
+        if (cancelled || !health.env?.groq) return;
+        const rec = new PhraseRecorder({
+          onPhrase: (clip, info) => enqueue(() => sendAudio(clip, info)),
+          onError: (m) => setCaptionError(m),
+        });
+        await rec.start();
+        if (cancelled) return rec.stop(false);
+        if (autoMutedRef.current) {
+          // Chrome speech failed before Whisper was ready; Whisper has the mic, so un-mute.
+          autoMutedRef.current = false;
+          previewOffRef.current = true;
+          mutedRef.current = false;
+          setMicMuted(false);
+        }
+        rec.setPaused(mutedRef.current);
+        recorderRef.current = rec;
+        whisperRef.current = true;
+        phraseBufRef.current = ""; // Whisper owns the final captions from here
+        setCaptureMode("whisper");
+        setMicSupported(true);
+        setMicError("");
+        if (!mutedRef.current) setIsRecording(true);
+      } catch (err) {
+        if (!cancelled) setCaptionError(`Accurate (Whisper) mode unavailable: ${(err as Error).message}. Using Chrome speech.`);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      whisperRef.current = false;
+      recorderRef.current?.stop(false);
+      recorderRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cls]);
 
   // Web Speech API Live Microphone Recognition
   useEffect(() => {
@@ -256,6 +374,7 @@ function TeacherLiveClassroomContent({
         if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
         else interimText += event.results[i][0].transcript;
       }
+      pendingInterimRef.current = interimText;
       if (interimText) {
         setTeacherAudio(interimText);
         // Let students see the words forming before the translation lands.
@@ -264,9 +383,10 @@ function TeacherLiveClassroomContent({
           channelRef.current?.send({ type: "broadcast", event: "interim", payload: { text: interimText } });
         }
       }
-      if (finalTranscript.trim()) {
+      // With Whisper on, Chrome only drives the live preview; Whisper sends the final captions.
+      if (finalTranscript.trim() && !whisperRef.current) {
         setTeacherAudio(finalTranscript.trim());
-        sendCaption(finalTranscript.trim());
+        addBrowserFinal(finalTranscript.trim());
       }
     };
     let lastError = "";
@@ -282,23 +402,38 @@ function TeacherLiveClassroomContent({
         "service-not-allowed": "Speech service blocked: use Google Chrome",
         "audio-capture": "No microphone found: check Windows sound settings (Input device)",
         network: "Speech service unreachable: Chrome speech recognition needs internet",
+        "language-not-supported": "Chrome can't recognise this language; live captions need the Groq key (Whisper)",
       };
+      const hard = ["not-allowed", "service-not-allowed", "audio-capture", "language-not-supported"].includes(e.error);
+      if (whisperRef.current) {
+        // Whisper has its own mic stream, so captions keep flowing; only the live word preview is lost.
+        if (hard) previewOffRef.current = true;
+        return;
+      }
       setMicError(msg[e.error] ?? `Mic error: ${e.error}`);
-      if (e.error === "not-allowed" || e.error === "service-not-allowed" || e.error === "audio-capture") {
+      if (hard) {
+        autoMutedRef.current = true;
         mutedRef.current = true;
         setMicMuted(true);
       }
     };
     // Chrome ends recognition after silence; keep it running until muted or ended.
     recognition.onend = () => {
-      setIsRecording(false);
+      if (!whisperRef.current) setIsRecording(false);
+      if (previewOffRef.current) return;
+      // Chrome restarts recognition every minute or so; words still "in progress" never become final, so keep them.
+      if (!whisperRef.current && !mutedRef.current && !endedRef.current) {
+        if (pendingInterimRef.current.trim()) addBrowserFinal(pendingInterimRef.current.trim());
+        flushBrowserPhrase();
+      }
+      pendingInterimRef.current = "";
       if (!stopped && !mutedRef.current && !endedRef.current) {
         setTimeout(() => {
           if (stopped || mutedRef.current || endedRef.current) return;
           try {
             recognition.start();
           } catch {}
-        }, lastError === "network" ? 2000 : 250);
+        }, lastError === "network" ? 2000 : 100);
         lastError = "";
       }
     };
@@ -319,7 +454,11 @@ function TeacherLiveClassroomContent({
   const toggleMic = () => {
     const next = !micMuted;
     mutedRef.current = next;
+    autoMutedRef.current = false;
     setMicMuted(next);
+    recorderRef.current?.setPaused(next);
+    if (!next && whisperRef.current) setIsRecording(true);
+    if (next) flushBrowserPhrase();
     const r = recognitionRef.current;
     if (!r) return;
     try {
@@ -331,7 +470,8 @@ function TeacherLiveClassroomContent({
     } catch {}
   };
 
-  // Realtime: students' presence (joined + readers per language), "I'm lost" pings, questions, speak-for-me
+  // Realtime: students' presence (joined + readers per language) and every caption (to mirror in the feeds).
+  // Student reactions are private, so they come from the stats poll below, not from Realtime.
   useEffect(() => {
     if (!cls) return;
     const supabase = createClient();
@@ -357,27 +497,16 @@ function TeacherLiveClassroomContent({
         ({ new: c }: { new: { seq: number; text: string; translations: Record<string, string> } }) => {
           seqRef.current = Math.max(seqRef.current, c.seq + 1);
           setTeacherAudio(c.text);
+          setStreamed((n) => n + 1);
           const tr = c.translations ?? {};
           setFeeds((prev) => {
             const next = { ...prev };
-            for (const l of FEED_LANGS) next[l] = { ...prev[l], text: tr[l] || (l === "en" ? c.text : prev[l].text) };
+            for (const l of FEED_LANGS) {
+              const text = tr[l] || (l === "en" ? c.text : "");
+              next[l] = { ...prev[l], text: text || prev[l].text, status: text ? (prev[l].status.includes("ms") ? prev[l].status : "Live") : prev[l].status };
+            }
             return next;
           });
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "reactions", filter: `class_id=eq.${cls.id}` },
-        ({ new: r }: { new: Reaction }) => {
-          if (r.kind === "lost") {
-            setConfusionCount((prev) => prev + 1);
-            if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([150, 100, 150]);
-            return;
-          }
-          const q = toQuestion(r);
-          setQuestions((prev) => (prev.some((p) => p.id === q.id) ? prev : [q, ...prev]));
-          // Speak for me: the teacher's device reads it aloud straight away.
-          if (r.kind === "speak") speak(`${q.studentName === "Anonymous Student" ? "A student" : q.studentName} says: ${q.text}`, clsRef.current?.source_lang || "en-IN", 0.95);
         },
       )
       .subscribe(async (status: string) => {
@@ -390,40 +519,52 @@ function TeacherLiveClassroomContent({
     };
   }, [cls]);
 
-  // Stats poll: confusion in the last minute, last spike, pace, and the question queue (catch-up after reload)
+  // Stats poll: confusion in the last minute, last spike, pace, and the question queue.
+  // New "Speak for me" requests are read aloud by this laptop as soon as they arrive.
   useEffect(() => {
     if (!cls) return;
-    let first = true;
     const load = async () => {
       try {
         const st = await api<{
           lost_recent: number;
+          lost_total: number;
           wpm: number;
           last_spike: { offset_s: number; text: string | null } | null;
           questions: Reaction[];
-        }>(`/api/class/${cls.id}/stats`);
+          blocked?: { count: number; students: { name: string; count: number }[] };
+        }>(`/api/class/${cls.id}/stats?window=60`);
+        if (st.blocked) setBlocked(st.blocked);
         setConfusionCount(st.lost_recent);
         setLastSpike(st.last_spike);
         setWpm(st.wpm);
-        if (first) {
-          first = false;
-          setQuestions((prev) => {
-            const have = new Set(prev.map((p) => p.id));
-            return [...prev, ...st.questions.map(toQuestion).filter((q) => !have.has(q.id))];
-          });
+        if (st.lost_total > lostRef.current && seenReactionsRef.current && "vibrate" in navigator) navigator.vibrate([150, 100, 150]);
+        lostRef.current = st.lost_total;
+        const firstLoad = !seenReactionsRef.current;
+        const seen = (seenReactionsRef.current ??= new Set());
+        const fresh = st.questions.filter((r) => !seen.has(String(r.id))).map(toQuestion); // newest first
+        fresh.forEach((q) => seen.add(q.id));
+        if (!fresh.length) return;
+        setQuestions((prev) => [...fresh, ...prev]);
+        if (!firstLoad) {
+          for (const q of [...fresh].reverse().filter((f) => f.kind === "speak")) {
+            speak(`${q.studentName === "Anonymous Student" ? "A student" : q.studentName} says: ${q.text}`, clsRef.current?.source_lang || "en-IN", 0.95);
+          }
         }
-      } catch {}
+      } catch (err) {
+        if (needsAuth(err)) router.replace("/teacher/login");
+      }
     };
     load();
-    const t = setInterval(load, 4000);
+    const t = setInterval(load, 2000);
     return () => clearInterval(t);
-  }, [cls]);
+  }, [cls, router]);
 
   const handleEndLecture = async () => {
     if (!cls) return;
     if (confirm("Are you sure you want to end this lecture? AI notes will be generated immediately.")) {
       try {
         endedRef.current = true;
+        recorderRef.current?.stop(false);
         try {
           recognitionRef.current?.stop();
         } catch {}
@@ -454,10 +595,10 @@ function TeacherLiveClassroomContent({
       form.append("image", img, "board.jpg");
       form.append("lang", "en");
       form.append("context", cls.classroom?.name ?? cls.title);
+      form.append("classId", cls.id);
       const res = await fetch("/api/board", { method: "POST", body: form });
       const board = await res.json();
       if (!res.ok) throw new Error(board.error || "Board scan failed");
-      channelRef.current?.send({ type: "broadcast", event: "board", payload: board });
       alert(`Board sent to ${joinedCount} student${joinedCount === 1 ? "" : "s"}: ${board.title}\n\n${board.explanation}`);
     } catch (err) {
       alert((err as Error).message);
@@ -466,14 +607,16 @@ function TeacherLiveClassroomContent({
     }
   };
 
-  const shareJoinLink = async () => {
+  const announce = async () => {
     if (!cls) return;
-    const pin = cls.classroom?.join_code ?? cls.join_code;
-    const url = `${window.location.origin}/student/live/${cls.id}`;
+    const msg = prompt("Announcement for students (translated into each student's language):");
+    if (!msg?.trim()) return;
     try {
-      await navigator.clipboard.writeText(url);
-    } catch {}
-    alert(`Students join with PIN ${pin}\nor open: ${url}\n(link copied)`);
+      await api(`/api/class/${cls.id}/announce`, { json: { text: msg.trim() } });
+      alert(`Announcement sent to ${joinedCount} student${joinedCount === 1 ? "" : "s"}.`);
+    } catch (err) {
+      alert((err as Error).message);
+    }
   };
 
   const unresolvedCount = questions.filter((q) => !q.resolved).length;
@@ -497,9 +640,21 @@ function TeacherLiveClassroomContent({
       <Navbar
         title="ClassCaption"
         subtitle="Instructor Telemetry & Live Audio"
+        homeHref="/teacher/dashboard"
         showEndLecture={true}
         onEndLecture={handleEndLecture}
       />
+
+      {cls.classroom && (
+        <JoinQrModal
+          isOpen={showQr}
+          onClose={() => setShowQr(false)}
+          classroomId={cls.classroom.id}
+          classroomName={cls.classroom.name}
+          pin={cls.classroom.join_code}
+          onPinChange={(pin) => setCls((c) => (c && c.classroom ? { ...c, classroom: { ...c.classroom, join_code: pin } } : c))}
+        />
+      )}
 
       <main className="max-w-2xl mx-auto px-4 py-5 space-y-5">
         {/* 1. Subheader Card with Status Metrics matching Stitch */}
@@ -531,9 +686,12 @@ function TeacherLiveClassroomContent({
               </span>
             </div>
 
-            <div className="h-10 px-3.5 rounded-xl border border-[#CBD5E1] bg-[#FEF3C7] flex items-center gap-2 text-xs font-bold font-mono text-[#92400E]">
-              <span>PIN: {cls.classroom?.join_code ?? cls.join_code}</span>
-            </div>
+            <button
+              onClick={() => setShowQr(true)}
+              className="h-10 px-3.5 rounded-xl border border-[#CBD5E1] bg-[#FEF3C7] flex items-center gap-2 text-xs font-bold font-mono text-[#92400E] hover:bg-[#FDE68A]"
+            >
+              <span>PIN: {cls.classroom?.join_code}</span>
+            </button>
 
             <div
               className={`h-10 px-3.5 rounded-xl border flex items-center gap-2 text-xs font-bold ${
@@ -551,7 +709,9 @@ function TeacherLiveClassroomContent({
                   : micMuted
                   ? "Mic Muted"
                   : isRecording
-                  ? "Clear Audio Signal"
+                  ? captureMode === "whisper"
+                    ? "Accurate captions (Whisper)"
+                    : "Clear Audio Signal (Chrome speech)"
                   : "Starting Mic..."}
               </span>
             </div>
@@ -561,9 +721,9 @@ function TeacherLiveClassroomContent({
         {/* 2. Real-Time Confusion Meter matching Stitch */}
         <ConfusionMeter
           count={confusionCount}
-          totalStudents={Math.max(1, joinedCount)}
-          lastSpikeTime={lastSpike ? formatTime(Math.round(lastSpike.offset_s)).replace(/^00:/, "") : "--:--"}
-          topic={spikeTopic}
+          totalStudents={joinedCount}
+          lastSpikeTime={lastSpike ? formatTime(Math.round(lastSpike.offset_s)).replace(/^00:/, "") : undefined}
+          topic={lastSpike?.text ? spikeTopic : undefined}
         />
 
         {/* 3. Speech Pace Coach Telemetry matching Stitch */}
@@ -606,7 +766,7 @@ function TeacherLiveClassroomContent({
 
           <div className="bg-[#F1F5F9] rounded-xl p-3 text-xs text-[#475569] flex items-center gap-2">
             <span>
-              ⓘ {captionError || `${sent.ok} caption${sent.ok === 1 ? "" : "s"} streamed • ${Object.keys(readersRef.current).length || 0} student language${Object.keys(readersRef.current).length === 1 ? "" : "s"} active`}
+              ⓘ {captionError || `${streamed} caption${streamed === 1 ? "" : "s"} streamed • ${Object.keys(readersRef.current).length || 0} student language${Object.keys(readersRef.current).length === 1 ? "" : "s"} active`}
             </span>
           </div>
         </section>
@@ -741,6 +901,19 @@ function TeacherLiveClassroomContent({
             </span>
           </div>
 
+          {blocked.count > 0 && (
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-[#FEF2F2] border border-[#FECACA] text-xs text-[#991B1B]">
+              <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+              <p>
+                <span className="font-bold">
+                  {blocked.count} inappropriate {blocked.count === 1 ? "message" : "messages"} blocked
+                </span>{" "}
+                before reaching the queue or the speaker:{" "}
+                {blocked.students.map((b) => `${b.name}${b.count > 1 ? ` (${b.count})` : ""}`).join(", ")}
+              </p>
+            </div>
+          )}
+
           <div className="space-y-3">
             {unresolvedCount === 0 && (
               <p className="text-xs text-[#64748B] text-center py-3">
@@ -778,7 +951,7 @@ function TeacherLiveClassroomContent({
                     {q.kind === "speak" ? (
                       <span className="px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1E40AF] text-xs font-bold flex items-center gap-1 border border-[#BFDBFE]">
                         <Volume2 className="w-3.5 h-3.5" />
-                        Deaf Assistive TTS
+                        Speak for Me
                       </span>
                     ) : (
                       <span className="px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1E40AF] text-xs font-bold">
@@ -858,22 +1031,16 @@ function TeacherLiveClassroomContent({
             </button>
 
             <button
-              onClick={shareJoinLink}
+              onClick={() => setShowQr(true)}
               className="h-24 rounded-2xl bg-white border border-[#CBD5E1] hover:bg-[#F1F5F9] text-[#0F172A] font-bold text-xs flex flex-col items-center justify-center gap-2 transition active:scale-95"
             >
               <Share2 className="w-6 h-6 text-[#475569]" />
-              <span>Share Join Link</span>
+              <span>Show Join QR</span>
             </button>
           </div>
 
           <button
-            onClick={() => {
-              const msg = prompt("Enter announcement for students:");
-              if (msg?.trim()) {
-                channelRef.current?.send({ type: "broadcast", event: "announcement", payload: { text: msg.trim(), lang: cls.source_lang } });
-                alert(`Announcement broadcasted to all ${joinedCount} students.`);
-              }
-            }}
+            onClick={announce}
             className="w-full h-12 rounded-xl bg-white border border-[#CBD5E1] hover:bg-[#F1F5F9] text-[#0F172A] font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95"
           >
             <Megaphone className="w-4 h-4 text-[#D97706]" />

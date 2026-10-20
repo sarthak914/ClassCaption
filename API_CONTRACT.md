@@ -13,22 +13,34 @@ The browser talks to two things:
 
 ---
 
+## Accounts and permissions
+
+Sessions are signed HttpOnly cookies, so a browser on the same origin needs no extra headers.
+
+| Who | How | May use |
+|---|---|---|
+| Teacher | `POST /api/auth/signup { name, email, password, institution?, department? }` or `POST /api/auth/login { email, password }`; `POST /api/auth/logout` | Own classrooms (`GET/POST /api/classrooms`, `POST /api/classrooms/:id/pin` for a new PIN), start/end classes, captions, stats, announcements (`POST /api/class/:id/announce { text }`), board capture, uploads, translate, `GET /api/join-url` |
+| Student | `POST /api/class/join` (below); `POST /api/auth/logout { as: "student" }` | Classrooms joined on this device: `GET /api/student/home`, `GET /api/classrooms/:id/live`, `GET /api/class/:id`, reactions, explain, and that classroom's lectures, notes, subtitles and Ask |
+| Anyone | | `GET /api/health`, `GET /api/auth/me` |
+
+Missing session → `401`; wrong classroom → `403` or `404`; too many requests → `429`.
+
 ## Live mode
 
 ### Flow
 
 ```
 Teacher                                   Backend                       Students
-POST /api/class/start  ─────────────────► classes row + join code
-show QR → https://<frontend>/join/<code>
-                                                                        POST /api/class/join {code, lang}
+POST /api/class/start {classroomId} ───► classes row
+show QR → https://<laptop>/join?pin=<PIN>
+                                                                        POST /api/class/join {pin, name, lang}
 Web Speech final sentence
 POST /api/captions {classId, text, seq} ─► translate → insert captions ─► Realtime INSERT on captions
                                                                         "I'm lost" / question
                                           reactions row ◄────────────── POST /api/class/:id/react
-Realtime INSERT on reactions ◄──────────
-GET /api/class/:id/stats  (every ~5 s)
-POST /api/class/:id/end  ───────────────► class → lecture + AI notes ──► Realtime UPDATE on classes (lecture_id)
+GET /api/class/:id/stats  (every 2 s: taps, pace, questions)
+POST /api/class/:id/announce, /api/board ► translated class_events row ► Realtime INSERT on class_events
+POST /api/class/:id/end  ───────────────► class → lecture + AI notes ──► class_events "ended" {lecture_id}
 ```
 
 ### `POST /api/class/start`
@@ -44,20 +56,21 @@ Response `201`:
   "channel": "class:uuid"
 }
 ```
-Put `join_code` in the QR code (for example `https://<frontend>/join/K7QX2M`).
+Students never use the class `join_code`; they join with the classroom PIN (`classroom.join_code`), which the QR code carries as `/join?pin=K7QX2M`.
 
 ### `POST /api/class/join`
-Student opens the QR link and picks a language. This also registers the language, so later captions are translated into it.
+Student opens the QR link (or types the PIN), enters a name and picks a language. Sets the student pass cookie for that classroom and registers the language, so later captions are translated into it. 15 attempts per 10 minutes per network.
 
-Request: `{ "code": "K7QX2M", "lang": "hi" }`
+Request: `{ "pin": "K7QX2M", "name": "Asha Rao", "lang": "hi" }`
 
 Response:
 ```json
-{ "class": { ...as above }, "lang": "hi", "channel": "class:uuid",
+{ "classroom": { "id": "uuid", "name": "...", "subject_code": "CS302", "room": "LH-304" },
+  "live_class": { "id": "uuid", "title": "...", "started_at": "..." } | null, "lang": "hi",
   "captions": [ { "id": 1, "seq": 0, "text": "original", "translations": { "hi": "..." },
                   "display": "text in the requested lang", "offset_s": 3.2, "created_at": "..." } ] }
 ```
-`captions` holds the last 30 captions, oldest first, already translated into `lang`.
+`captions` holds the last 30 captions of the live class (if any), oldest first, already translated into `lang`.
 
 ### `GET /api/class/:id?lang=hi&since=<seq>&limit=50`
 Same caption shape as `join`. Use it when a student **switches language** (missing translations are filled in and cached) or to **catch up** after a reconnect (`since` = last seq seen).
@@ -89,13 +102,16 @@ Response `201`: `{ "reaction": { "id", "class_id", "kind", "text", "lang", "text
 
 `text_en` is the question translated into the class language. The teacher screen can read it aloud with `speechSynthesis.speak(new SpeechSynthesisUtterance(text_en))`.
 
+Typed text is moderated before it is saved: a word filter (English, Hindi and Hinglish in Latin or Devanagari, including leetspeak, masking like `f*ck` and spacing like `f.u.c.k`) and, when an AI key is set, a short AI check (set `MODERATION_AI=off` to skip it). Abusive text gets `422` and is never stored or read aloud. Three refusals in 10 minutes mute that student's typing for 10 minutes (`429`). Names given at join get the word filter too (`422`).
+
 ### `GET /api/class/:id/stats?window=60`
 Numbers for the confusion meter and pace coach. Poll every 3 to 5 seconds, or recompute on each Realtime event.
 ```json
 { "status": "live", "languages": ["hi","ta"], "captions": 42,
   "lost_recent": 4, "lost_total": 9, "window_s": 60,
   "wpm": 172, "pace": "too_fast",            // "silent" | "slow" | "good" | "too_fast"
-  "questions": [ { ...reaction } ] }
+  "questions": [ { ...reaction } ],
+  "blocked": { "count": 2, "students": [ { "name": "Asha", "count": 2 } ], "last_at": "..." } }
 ```
 
 ### `POST /api/class/:id/end`
@@ -202,7 +218,7 @@ Gemini Vision reads the image. If Gemini is busy or over quota, a Groq vision mo
 
 ## Realtime (Supabase)
 
-Browsers subscribe with the **anon** key. All tables are read-only for anon; writes go through the API.
+Browsers subscribe with the **anon** key. Anon can read only `captions` and `class_events`; everything else, and all writes, go through the API.
 
 ```js
 import { createClient } from "@supabase/supabase-js";
@@ -214,22 +230,13 @@ const channel = supabase
   .on("postgres_changes",
       { event: "INSERT", schema: "public", table: "captions", filter: `class_id=eq.${classId}` },
       ({ new: c }) => addCaption({ ...c, display: c.translations[lang] ?? c.text }))
-  // Teacher: "I'm lost" taps and questions
+  // Students: announcements, board scans (payload.translations[lang]) and the end of class
   .on("postgres_changes",
-      { event: "INSERT", schema: "public", table: "reactions", filter: `class_id=eq.${classId}` },
-      ({ new: r }) => r.kind === "lost" ? bumpLost(r) : showQuestion(r))
-  // Everyone: class ended → lecture_id appears
-  .on("postgres_changes",
-      { event: "UPDATE", schema: "public", table: "classes", filter: `id=eq.${classId}` },
-      ({ new: c }) => c.status === "ended" && onEnded(c.lecture_id))
-  .subscribe();
-
-// Upload page: processing progress
-supabase.channel(`lecture:${lectureId}`)
-  .on("postgres_changes", { event: "UPDATE", schema: "public", table: "lectures", filter: `id=eq.${lectureId}` },
-      ({ new: l }) => setProgress(l.status, l.progress))
+      { event: "INSERT", schema: "public", table: "class_events", filter: `class_id=eq.${classId}` },
+      ({ new: e }) => e.kind === "ended" ? onEnded(e.payload.lecture_id) : showEvent(e))
   .subscribe();
 ```
+The teacher reads "I'm lost" taps and questions from `GET /api/class/:id/stats` (they are private, so not on Realtime), and upload progress from `GET /api/lectures/:id`.
 
 A caption that arrives before a student's language was registered may not have their translation yet. In that case show `c.text`, or call `GET /api/class/:id?lang=..&since=<seq-1>` to backfill.
 

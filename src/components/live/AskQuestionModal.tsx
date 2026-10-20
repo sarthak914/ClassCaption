@@ -1,20 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { HelpCircle, X, Send, UserCheck, EyeOff } from "lucide-react";
+import { HelpCircle, X, Send, UserCheck, EyeOff, ShieldAlert } from "lucide-react";
 
 interface AskQuestionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (text: string, isAnonymous: boolean) => Promise<void>;
   lectureId: string;
+  studentName?: string;
 }
 
-export function AskQuestionModal({ isOpen, onClose, onSubmit, lectureId }: AskQuestionModalProps) {
+export function AskQuestionModal({ isOpen, onClose, onSubmit, studentName }: AskQuestionModalProps) {
   const [text, setText] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(true);
   const [loading, setLoading] = useState(false);
   const [sentSuccess, setSentSuccess] = useState(false);
+  const [error, setError] = useState("");
 
   if (!isOpen) return null;
 
@@ -23,6 +25,7 @@ export function AskQuestionModal({ isOpen, onClose, onSubmit, lectureId }: AskQu
     if (!text.trim() || loading) return;
 
     setLoading(true);
+    setError("");
     try {
       await onSubmit(text.trim(), isAnonymous);
       setSentSuccess(true);
@@ -32,7 +35,7 @@ export function AskQuestionModal({ isOpen, onClose, onSubmit, lectureId }: AskQu
         onClose();
       }, 1200);
     } catch (err) {
-      alert((err as Error).message);
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
@@ -48,10 +51,10 @@ export function AskQuestionModal({ isOpen, onClose, onSubmit, lectureId }: AskQu
             </div>
             <div>
               <h3 className="text-lg font-bold text-[#0F172A] font-heading">
-                Ask a Question to Professor
+                Ask your teacher
               </h3>
               <p className="text-xs text-[#64748B]">
-                Appears on the instructor telemetry monitor in real-time
+                Appears in your teacher&apos;s question queue right away, in their language
               </p>
             </div>
           </div>
@@ -67,7 +70,7 @@ export function AskQuestionModal({ isOpen, onClose, onSubmit, lectureId }: AskQu
           <div className="bg-[#ECFDF5] border border-[#A7F3D0] text-[#065F46] rounded-2xl p-6 text-center my-4">
             <p className="font-bold text-base">Question Submitted!</p>
             <p className="text-xs mt-1 text-[#047857]">
-              The professor has received your question.
+              Your teacher has received your question.
             </p>
           </div>
         ) : (
@@ -75,7 +78,7 @@ export function AskQuestionModal({ isOpen, onClose, onSubmit, lectureId }: AskQu
             <div>
               <textarea
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={(e) => { setText(e.target.value); setError(""); }}
                 rows={3}
                 placeholder="Type your question or doubt here..."
                 required
@@ -93,11 +96,11 @@ export function AskQuestionModal({ isOpen, onClose, onSubmit, lectureId }: AskQu
                 )}
                 <div>
                   <p className="text-xs font-bold text-[#0F172A]">
-                    {isAnonymous ? "Ask Anonymously" : "Include My Name (Rahul V.)"}
+                    {isAnonymous ? "Ask Anonymously" : `Include my name${studentName ? ` (${studentName})` : ""}`}
                   </p>
                   <p className="text-[11px] text-[#64748B]">
                     {isAnonymous
-                      ? "Your name will not be shown to classmates or teacher"
+                      ? "Your teacher sees the question without your name"
                       : "Helps teacher address you directly"}
                   </p>
                 </div>
@@ -118,6 +121,12 @@ export function AskQuestionModal({ isOpen, onClose, onSubmit, lectureId }: AskQu
               </button>
             </div>
 
+            {error && (
+              <p role="alert" className="flex items-start gap-2 p-3 rounded-xl bg-[#FEF2F2] border border-[#FECACA] text-[#B91C1C] text-xs font-semibold">
+                <ShieldAlert className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </p>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"

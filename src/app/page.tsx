@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   GraduationCap,
@@ -14,6 +15,19 @@ import {
 } from "lucide-react";
 
 export default function LandingLauncherPage() {
+  // Real status from the server: which translators are configured right now.
+  const [status, setStatus] = useState<{ ok: boolean; providers: string } | null>(null);
+  useEffect(() => {
+    fetch("/api/health")
+      .then((r) => r.json())
+      .then((h) => setStatus({ ok: !!h.ok, providers: String(h.translation_providers ?? "") }))
+      .catch(() => setStatus({ ok: false, providers: "" }));
+  }, []);
+  const providerNames = (status?.providers ?? "")
+    .split(",")
+    .map((p) => ({ bhashini: "Bhashini", groq: "Groq", gemini: "Gemini", google: "Google" })[p.trim()] ?? "")
+    .filter(Boolean);
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] flex flex-col justify-between p-4 sm:p-6">
       {/* Header */}
@@ -33,10 +47,16 @@ export default function LandingLauncherPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="px-3 py-1 rounded-full bg-[#ECFDF5] text-[#065F46] text-xs font-bold border border-[#A7F3D0] flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[#059669] animate-pulse" />
-            Live IndicTrans2 Ready
-          </span>
+          {status && (
+            <span
+              className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${
+                status.ok ? "bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]" : "bg-[#FEF2F2] text-[#991B1B] border-[#FECACA]"
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${status.ok ? "bg-[#059669] animate-pulse" : "bg-[#DC2626]"}`} />
+              {status.ok ? `Online • ${providerNames.join(" → ") || "translation ready"}` : "Server not ready"}
+            </span>
+          )}
         </div>
       </header>
 
@@ -47,7 +67,7 @@ export default function LandingLauncherPage() {
             Real-Time Multilingual Captions for Every Student
           </h1>
           <p className="text-base text-[#475569] leading-relaxed">
-            Teacher speaks in Hindi or Hinglish &rarr; Instant speech recognition &rarr; Live AI translation into Indic languages (Hindi, Bengali, Tamil, Telugu, etc.) &rarr; Delivered to students in real-time.
+            The teacher speaks English, Hinglish or Hindi. Every student reads live captions in their own language, among 12 Indian languages, about two seconds later, and can say &ldquo;I&apos;m lost&rdquo; without raising a hand.
           </p>
         </div>
 
@@ -74,33 +94,32 @@ export default function LandingLauncherPage() {
               <div className="space-y-2 text-xs font-medium text-[#334155]">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#059669]" />
-                  <span>High-Contrast Dark Viewport (#0B0F19)</span>
+                  <span>Large, high-contrast live captions</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#059669]" />
-                  <span>Interactive 1-Sentence AI Term Glossary</span>
+                  <span>Tap any technical term for a simple explanation</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#059669]" />
-                  <span>Assistive Speech Synthesis (&ldquo;Speak for Me&rdquo;)</span>
+                  <span>&ldquo;Speak for Me&rdquo;: type it, the classroom hears it</span>
                 </div>
               </div>
             </div>
 
             <div className="space-y-2 pt-2">
               <Link
-                href="/student"
+                href="/join"
                 className="w-full h-13 rounded-2xl bg-[#1E3A8A] hover:bg-[#00236F] text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-sm transition active:scale-95"
               >
-                <span>Launch Student Dashboard</span>
+                <span>Join a Class with PIN or QR</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link
-                href="/student/live/demo-live-01"
+                href="/student"
                 className="w-full h-11 rounded-2xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#0F172A] font-bold text-xs flex items-center justify-center gap-1.5 transition"
               >
-                <Radio className="w-3.5 h-3.5 text-[#059669] animate-pulse" />
-                <span>Open Live Caption Screen</span>
+                <span>My Classes &amp; Recordings</span>
               </Link>
             </div>
           </div>
@@ -120,38 +139,38 @@ export default function LandingLauncherPage() {
               </h2>
 
               <p className="text-sm text-[#475569] leading-relaxed mb-4">
-                Speak normally while the Web Speech API and Indic translator stream captions. Monitor real-time confusion spikes, speech pace (WPM), and questions.
+                Teach as usual while your speech becomes captions in every student&apos;s language. See confusion, your speaking pace and students&apos; questions as they happen.
               </p>
 
               <div className="space-y-2 text-xs font-medium text-[#334155]">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#059669]" />
-                  <span>Real-Time Speech Pace Coach (WPM Gauge)</span>
+                  <span>Speaking pace coach (words per minute)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#059669]" />
-                  <span>Live 4-Language Simultaneous Stream Monitor</span>
+                  <span>See your captions in English, Hindi, Tamil and Bengali</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#059669]" />
-                  <span>Student Confusion Heatmap &amp; TTS Audio Queue</span>
+                  <span>Anonymous &ldquo;I&apos;m lost&rdquo; meter and question queue</span>
                 </div>
               </div>
             </div>
 
             <div className="space-y-2 pt-2">
               <Link
-                href="/teacher/live/demo-live-01"
+                href="/teacher/dashboard"
                 className="w-full h-13 rounded-2xl bg-[#059669] hover:bg-[#047857] text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-sm transition active:scale-95"
               >
-                <Radio className="w-4 h-4 animate-pulse" />
-                <span>Start Live Teaching Screen</span>
+                <Radio className="w-4 h-4" />
+                <span>Teacher Sign In</span>
               </Link>
               <Link
-                href="/teacher/dashboard"
+                href="/teacher/login"
                 className="w-full h-11 rounded-2xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#0F172A] font-bold text-xs flex items-center justify-center gap-1.5 transition"
               >
-                <span>Manage Classrooms &amp; PIN Codes</span>
+                <span>Create a Teacher Account</span>
               </Link>
             </div>
           </div>
@@ -167,22 +186,22 @@ export default function LandingLauncherPage() {
               Recorded Lecture, AI Notes &amp; Bilingual Quiz
             </h3>
             <p className="text-xs text-gray-300">
-              Interactive video timeline with confusion hotspots, audio narration, and AI question assistant.
+              Every live class is saved automatically. Uploaded videos get subtitles too. Students get notes, a quiz, and answers with timestamps.
             </p>
           </div>
 
           <Link
-            href="/student/lectures/demo-live-01"
+            href="/student#recordings"
             className="px-6 py-3 rounded-2xl bg-[#1E3A8A] hover:bg-[#2563EB] text-white font-bold text-xs whitespace-nowrap transition active:scale-95 shadow-sm"
           >
-            Open Recorded Hub &rarr;
+            My Recordings &rarr;
           </Link>
         </div>
       </main>
 
       {/* Footer */}
       <footer className="max-w-4xl mx-auto w-full text-center py-4 border-t border-[#E2E8F0] text-xs text-[#64748B]">
-        <p>ClassCaption &bull; WCAG AAA Compliant Educational Accessibility Platform</p>
+        <p>ClassCaption &bull; Built for deaf and hard-of-hearing students, and everyone learning in their second language</p>
       </footer>
     </div>
   );

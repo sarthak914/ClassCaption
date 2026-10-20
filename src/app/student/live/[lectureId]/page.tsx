@@ -10,7 +10,7 @@ import { SpeakForMeModal } from "@/components/live/SpeakForMeModal";
 import { AskQuestionModal } from "@/components/live/AskQuestionModal";
 import { createClient } from "@/lib/supabase/client";
 import { LanguageCode, LANGUAGES } from "@/lib/languages";
-import { api, isUuid, pref, setPref, sourceLabel, speak as speakAloud, techTerms } from "@/lib/client/api";
+import { api, isUuid, needsAuth, pref, setPref, sourceLabel, speak as speakAloud, techTerms } from "@/lib/client/api";
 import {
   Volume2,
   Sparkles,
@@ -42,6 +42,11 @@ type ClassInfo = {
 
 type CaptionRow = { seq: number; text: string; translations: Record<string, string>; display?: string; created_at: string };
 
+type ClassEvent =
+  | { kind: "announcement"; payload: { text: string; translations: Record<string, string> } }
+  | { kind: "board"; payload: { board: Board; translations: Record<string, string[]> } }
+  | { kind: "ended"; payload: { lecture_id: string } };
+
 type Board = {
   title: string;
   text: string;
@@ -49,6 +54,19 @@ type Board = {
   diagrams: { description: string }[];
   explanation: string;
 };
+
+/** The teacher's board scan in my language (the server translates it for every language in the class). */
+function boardIn(p: { board: Board; translations: Record<string, string[]> }, lang: string): Board {
+  const t = p.translations?.[lang];
+  if (!t) return p.board;
+  const nd = p.board.diagrams.length;
+  return {
+    ...p.board,
+    explanation: t[0] ?? p.board.explanation,
+    diagrams: p.board.diagrams.map((d, i) => ({ description: t[1 + i] ?? d.description })),
+    equations: p.board.equations.map((e, i) => ({ ...e, spoken: t[1 + nd + i] ?? e.spoken })),
+  };
+}
 
 const toEvent = (c: CaptionRow, lang: string): LiveCaptionEvent => ({
   seq: c.seq,
@@ -78,6 +96,8 @@ function StudentLiveLectureContent({
   const [now, setNow] = useState(Date.now());
   const [announcement, setAnnouncement] = useState("");
   const [board, setBoard] = useState<Board | null>(null);
+  const [studentName, setStudentName] = useState("");
+  const [needJoin, setNeedJoin] = useState(false);
 
   // Live Captions Feed State
   const [captions, setCaptions] = useState<LiveCaptionEvent[]>([]);
@@ -105,23 +125,22 @@ function StudentLiveLectureContent({
     setSelectedLang(l);
   }, []);
 
-  // Resolve demo / classroom links to the class that is live right now.
+  // A classroom link ("classroom-<id>") waits here until the teacher goes live.
   useEffect(() => {
     if (classId) return;
     let stop = false;
+    const roomId = lectureId.startsWith("classroom-") ? lectureId.slice("classroom-".length) : "";
+    if (!isUuid(roomId)) {
+      setNeedJoin(true);
+      return;
+    }
     const find = async () => {
       try {
-        if (lectureId.startsWith("classroom-")) {
-          const roomId = lectureId.slice("classroom-".length);
-          const { classes } = await api<{ classes: ClassInfo[] }>(`/api/class?status=live&classroomId=${roomId}&limit=1`);
-          if (classes[0]) return setClassId(classes[0].id);
-          setWaitingMsg("This classroom has no live lecture right now. This page will open it as soon as your teacher starts.");
-        } else {
-          const { classes } = await api<{ classes: ClassInfo[] }>("/api/class?status=live&limit=1");
-          if (classes[0]) return setClassId(classes[0].id);
-          setWaitingMsg("No lecture is live right now. This page will open it as soon as a teacher starts one.");
-        }
+        const { live_class } = await api<{ live_class: { id: string } | null }>(`/api/classrooms/${roomId}/live`);
+        if (live_class) return setClassId(live_class.id);
+        setWaitingMsg("Your class isn't live yet. This page opens the captions as soon as your teacher starts.");
       } catch (err) {
+        if (needsAuth(err)) return setNeedJoin(true);
         setWaitingMsg((err as Error).message);
       }
       if (!stop) setTimeout(find, 3000);
@@ -145,9 +164,19 @@ function StudentLiveLectureContent({
   // Load class + captions in my language (backfills translations for earlier lines).
   const loadCaptions = async (id: string, lang: string) => {
     const t0 = performance.now();
-    const data = await api<{ class: ClassInfo; captions: CaptionRow[] }>(`/api/class/${id}?lang=${lang}&limit=40`);
+    const data = await api<{
+      class: ClassInfo;
+      captions: CaptionRow[];
+      events?: { announcement: ClassEvent | null; board: ClassEvent | null };
+      me: { role: string; name?: string };
+    }>(`/api/class/${id}?lang=${lang}&limit=40`);
     setPingMs(Math.round(performance.now() - t0));
     setCls(data.class);
+    setStudentName(data.me.name ?? "");
+    const a = data.events?.announcement;
+    if (a?.kind === "announcement") setAnnouncement(a.payload.translations?.[lang] || a.payload.text);
+    const b = data.events?.board;
+    if (b?.kind === "board") setBoard(boardIn(b.payload, lang));
     if (data.class.status === "ended") {
       alert("This lecture has ended. Opening the recorded lecture with AI notes...");
       goToNotes(data.class);
@@ -161,7 +190,7 @@ function StudentLiveLectureContent({
 
   useEffect(() => {
     if (!classId) return;
-    loadCaptions(classId, selectedLang).catch((err) => setWaitingMsg((err as Error).message));
+    loadCaptions(classId, selectedLang).catch((err) => (needsAuth(err) ? setNeedJoin(true) : setWaitingMsg((err as Error).message)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classId, selectedLang]);
 
@@ -198,7 +227,8 @@ function StudentLiveLectureContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classId]);
 
-  // Realtime: new captions, interim words, board scans, announcements, end of class; presence tells the teacher I'm here.
+  // Realtime: new captions, interim words, and server events (board scans, announcements, end of class);
+  // presence tells the teacher I'm here.
   useEffect(() => {
     if (!classId) return;
     const supabase = createClient();
@@ -211,7 +241,10 @@ function StudentLiveLectureContent({
           const lang = langRef.current;
           setActiveSpokenText(c.text);
           lastSeqRef.current = Math.max(lastSeqRef.current, c.seq);
-          setCaptions((prev) => (prev.some((p) => p.seq === c.seq) ? prev : [...prev, toEvent(c, lang)].slice(-60)));
+          // Keep spoken order even if a slower translation lands after a later line.
+          setCaptions((prev) =>
+            prev.some((p) => p.seq === c.seq) ? prev : [...prev, toEvent(c, lang)].sort((a, b) => a.seq - b.seq).slice(-60),
+          );
           // Language nobody else reads yet: fetch this line in my language.
           if (!c.translations?.[lang]) {
             api<{ captions: CaptionRow[] }>(`/api/class/${classId}?lang=${lang}&since=${c.seq - 1}&limit=1`)
@@ -226,48 +259,22 @@ function StudentLiveLectureContent({
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "classes", filter: `id=eq.${classId}` },
-        ({ new: c }: { new: ClassInfo }) => {
-          if (c.status === "ended" && c.lecture_id) {
-            alert("The professor has concluded the live lecture. Redirecting to AI notes...");
-            goToNotes(c);
+        { event: "INSERT", schema: "public", table: "class_events", filter: `class_id=eq.${classId}` },
+        ({ new: ev }: { new: ClassEvent }) => {
+          const lang = langRef.current;
+          if (ev.kind === "ended") {
+            alert("Your teacher has ended the live lecture. Opening the notes...");
+            goToNotes(null, ev.payload.lecture_id);
+          } else if (ev.kind === "announcement") {
+            setAnnouncement(ev.payload.translations?.[lang] || ev.payload.text);
+            if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([200, 100, 200]);
+          } else if (ev.kind === "board") {
+            setBoard(boardIn(ev.payload, lang));
           }
         },
       )
       .on("broadcast", { event: "interim" }, ({ payload }: { payload: { text: string } }) => {
-        if (payload?.text) setActiveSpokenText(payload.text);
-      })
-      .on("broadcast", { event: "announcement" }, ({ payload }: { payload: { text: string; lang?: string } }) => {
-        if (!payload?.text) return;
-        setAnnouncement(payload.text);
-        if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([200, 100, 200]);
-        const lang = langRef.current;
-        api<{ translations: Record<string, string[]> }>("/api/translate", {
-          json: { text: payload.text, target: lang, source: (payload.lang ?? "en").split("-")[0] },
-        })
-          .then((r) => setAnnouncement(r.translations[lang]?.[0] || payload.text))
-          .catch(() => {});
-      })
-      .on("broadcast", { event: "board" }, ({ payload }: { payload: Board }) => {
-        if (!payload) return;
-        setBoard(payload);
-        const lang = langRef.current;
-        if (lang === "en") return;
-        // Board arrives in English; translate the explanation, diagram descriptions and spoken equations.
-        const texts = [payload.explanation, ...payload.diagrams.map((d) => d.description), ...payload.equations.map((e) => e.spoken)];
-        api<{ translations: Record<string, string[]> }>("/api/translate", { json: { texts, target: lang, source: "en" } })
-          .then((r) => {
-            const t = r.translations[lang];
-            if (!t) return;
-            const nd = payload.diagrams.length;
-            setBoard({
-              ...payload,
-              explanation: t[0],
-              diagrams: payload.diagrams.map((d, i) => ({ description: t[1 + i] ?? d.description })),
-              equations: payload.equations.map((e, i) => ({ ...e, spoken: t[1 + nd + i] ?? e.spoken })),
-            });
-          })
-          .catch(() => {});
+        if (typeof payload?.text === "string") setActiveSpokenText(payload.text.slice(0, 300));
       })
       .subscribe(async (status: string) => {
         if (status === "SUBSCRIBED") await channel.track({ role: "student", lang: langRef.current });
@@ -305,7 +312,7 @@ function StudentLiveLectureContent({
         text,
         lang: selectedLang,
         captionSeq: lastSeqRef.current >= 0 ? lastSeqRef.current : undefined,
-        studentName: isAnonymous ? undefined : pref("name", "Rahul Verma"),
+        anonymous: isAnonymous,
       },
     });
   };
@@ -353,6 +360,20 @@ function StudentLiveLectureContent({
     );
   };
 
+  if (needJoin) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] pb-28 text-[#0F172A]">
+        <Navbar title="ClassCaption" subtitle="Assistive Lecture Stream" />
+        <main className="max-w-2xl mx-auto px-4 py-4">
+          <section className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs text-center space-y-3">
+            <p className="text-sm text-[#475569]">Join this class with the PIN or QR code your teacher shows on the screen.</p>
+            <a href="/join" className="inline-flex h-11 px-5 rounded-xl bg-[#1E3A8A] text-white font-bold text-sm items-center">Join with PIN</a>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
   if (!classId || !cls) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] pb-28 text-[#0F172A]">
@@ -387,7 +408,7 @@ function StudentLiveLectureContent({
               {cls.classroom?.name ?? cls.title}
             </h1>
             <span className="px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1E40AF] text-xs font-bold whitespace-nowrap">
-              {cls.classroom?.subject_code || `PIN ${cls.classroom?.join_code ?? cls.join_code}`}
+              {cls.classroom?.subject_code || "Live"}
             </span>
           </div>
 
@@ -670,6 +691,7 @@ function StudentLiveLectureContent({
         onClose={() => setAskModalOpen(false)}
         onSubmit={(text, isAnon) => handleSpeakOrQuestion(text, "question", isAnon)}
         lectureId={lectureId}
+        studentName={studentName}
       />
 
       <BottomNav currentTab="classes" />

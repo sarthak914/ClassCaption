@@ -1,6 +1,14 @@
 "use client";
 
-/** JSON fetch against our own API; throws with the server's error message. */
+import { speechLang } from "../languages";
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
+/** JSON fetch against our own API; throws an ApiError with the server's message and status. */
 export async function api<T = any>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
   const { json, ...rest } = init ?? {};
   const res = await fetch(path, {
@@ -10,7 +18,7 @@ export async function api<T = any>(path: string, init?: RequestInit & { json?: u
       : {}),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  if (!res.ok) throw new ApiError(res.status, data.error || `Request failed (${res.status})`);
   return data as T;
 }
 
@@ -21,6 +29,9 @@ export function mmss(secs: number) {
   const s = Math.max(0, Math.floor(secs || 0));
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
+
+/** 401 → the session is missing or expired; 403 → signed in but not allowed here. */
+export const needsAuth = (err: unknown) => err instanceof ApiError && (err.status === 401 || err.status === 403);
 
 /** Per-device preferences (language, name). Never required for the page to work. */
 export function pref(key: "lang" | "name", fallback: string): string {
@@ -49,10 +60,7 @@ export function speak(text: string, lang = "en-IN", rate = 1, onEnd?: () => void
 }
 
 export function sourceLabel(sourceLang?: string | null) {
-  if (!sourceLang) return "Hinglish / English";
-  if (sourceLang.startsWith("hi")) return "Hindi";
-  if (sourceLang === "en-IN") return "Hinglish / English";
-  return "English";
+  return speechLang(sourceLang).short;
 }
 
 /**

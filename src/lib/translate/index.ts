@@ -12,14 +12,31 @@ import { bhashiniTranslate } from "./bhashini";
 export interface Translator {
   name: string;
   available(): boolean;
-  translate(texts: string[], targets: string[], source: string): Promise<Record<string, string[]>>;
+  translate(texts: string[], targets: string[], source: string, ctx?: TranslateContext): Promise<Record<string, string[]>>;
 }
 
-const llmPrompt = (texts: string[], targets: string[], source: string) => `You translate Indian college lecture captions.
-The input is spoken ${source === "hi" ? "Hindi" : "English or Hinglish (Hindi-English mix)"} from a teacher, transcribed by speech recognition, so it may have small errors.
+/** Optional help for the LLM translators: earlier lines of the lecture and the classroom's word list. */
+export type TranslateContext = { previous?: string[]; glossary?: string[] };
+
+const spokenAs = (source: string) =>
+  source === "en"
+    ? "English or Hinglish (Hindi-English mix, Hindi words often written in English letters)"
+    : source === "hi"
+    ? "Hindi, possibly a regional dialect (Bhojpuri, Haryanvi, Rajasthani, Awadhi, Maithili, Bundeli...) or mixed with English"
+    : `${langName(source)}, possibly a regional dialect or mixed with English/Hindi`;
+
+const llmPrompt = (texts: string[], targets: string[], source: string, ctx: TranslateContext = {}) => `You translate Indian college lecture captions.
+The input is spoken ${spokenAs(source)} from a teacher, transcribed live by speech recognition, so it has little punctuation and may have errors: misheard words, wrong homophones, words split by pauses.
+Teachers have every kind of accent and voice; some stutter, repeat words, speak slowly or have speech differences.
 Translate every item into each target language: ${targets.map((t) => `${t} (${langName(t)})`).join(", ")}.
-Rules: natural, simple language a student understands; keep technical/subject terms (e.g. "algorithm", "derivative", "photosynthesis") in English script inside the sentence when there is no common native word; keep numbers and formulas as-is; same number of items, same order.
-Return JSON exactly: {${targets.map((t) => `"${t}": ["..."]`).join(", ")}}
+Rules:
+- First work out what the teacher meant (use the earlier lines and the subject), silently fix obvious recognition mistakes, then translate that meaning. Never translate a misheard word literally.
+- Drop stutters, repeated words, false starts and fillers ("um", "matlab", "basically" used as filler). Map regional dialect words to their standard meaning.
+- Natural, simple, correctly punctuated sentences a student understands. "en" means clean, grammatical English (translate any Hindi or other-language parts).
+- Keep technical/subject terms (e.g. "algorithm", "derivative", "photosynthesis") in English script inside the sentence when there is no common native word, and translate each term the same way every time.
+- Keep numbers, units, names, code and formulas as-is.
+- Same number of items, same order. Do not merge, split, summarise or add items. If an item is only noise or filler, return "" for it.
+${ctx.glossary?.length ? `The teacher's own word list (names and subject terms). When a word sounds like one of these, it IS that term; spell it exactly like this: ${JSON.stringify(ctx.glossary)}\n` : ""}${ctx.previous?.length ? `Earlier lines of this lecture, for context only (do NOT translate them): ${JSON.stringify(ctx.previous)}\n` : ""}Return JSON exactly: {${targets.map((t) => `"${t}": ["..."]`).join(", ")}}
 Input items (JSON array): ${JSON.stringify(texts)}`;
 
 function checkShape(out: Record<string, unknown>, texts: string[], targets: string[]) {
@@ -33,9 +50,9 @@ function checkShape(out: Record<string, unknown>, texts: string[], targets: stri
 const gemini: Translator = {
   name: "gemini",
   available: () => !!process.env.GEMINI_API_KEY,
-  async translate(texts, targets, source) {
+  async translate(texts, targets, source, ctx) {
     const live = texts.length <= 5;
-    const out = await geminiJSON<Record<string, unknown>>(llmPrompt(texts, targets, source), {
+    const out = await geminiJSON<Record<string, unknown>>(llmPrompt(texts, targets, source, ctx), {
       timeoutMs: live ? 5000 : 45000,
       retries: live ? 0 : 2, // live captions: fail fast and let Groq answer
     });
@@ -46,8 +63,8 @@ const gemini: Translator = {
 const groq: Translator = {
   name: "groq",
   available: () => !!process.env.GROQ_API_KEY,
-  async translate(texts, targets, source) {
-    const out = await groqJSON<Record<string, unknown>>(llmPrompt(texts, targets, source), texts.length > 5 ? 45000 : 8000);
+  async translate(texts, targets, source, ctx) {
+    const out = await groqJSON<Record<string, unknown>>(llmPrompt(texts, targets, source, ctx), texts.length > 5 ? 45000 : 8000);
     return checkShape(out, texts, targets);
   },
 };
@@ -101,7 +118,7 @@ export async function translate(
   texts: string[],
   targets: string[],
   source = "en",
-  opts: { keepSource?: boolean } = {},
+  opts: { keepSource?: boolean } & TranslateContext = {},
 ): Promise<{ provider: string; result: Record<string, string[]> }> {
   // keepSource: Hinglish tagged as "en" still needs a clean English version.
   const tgts = [...new Set(targets)].filter((t) => t && (opts.keepSource || t !== source));
@@ -109,7 +126,7 @@ export async function translate(
   const errors: string[] = [];
   for (const t of chain()) {
     try {
-      return { provider: t.name, result: await t.translate(texts, tgts, source) };
+      return { provider: t.name, result: await t.translate(texts, tgts, source, { previous: opts.previous, glossary: opts.glossary }) };
     } catch (e) {
       errors.push(`${t.name}: ${(e as Error).message}`);
     }

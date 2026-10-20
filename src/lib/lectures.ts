@@ -87,7 +87,7 @@ export async function processUpload(id: string, language?: string) {
 /** Ended live class → lecture. Captions already have text + timestamps, so Whisper is skipped. */
 export async function saveClassAsLecture(classId: string) {
   const db = supabaseAdmin();
-  const { data: cls, error } = await db.from("classes").select("*").eq("id", classId).maybeSingle();
+  const { data: cls, error } = await db.from("classes").select("*, classroom:classrooms(teacher_id)").eq("id", classId).maybeSingle();
   if (error) throw error;
   if (!cls) throw new HttpError(404, "Class not found");
   if (cls.lecture_id) return cls.lecture_id as string;
@@ -113,6 +113,7 @@ export async function saveClassAsLecture(classId: string) {
     .insert({
       class_id: classId,
       classroom_id: cls.classroom_id ?? null,
+      teacher_id: cls.classroom?.teacher_id ?? null,
       title: cls.title,
       source: "live",
       status: captions.length ? "summarising" : "ready",

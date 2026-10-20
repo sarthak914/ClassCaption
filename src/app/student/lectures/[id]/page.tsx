@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/navigation/Navbar";
 import { BottomNav } from "@/components/navigation/BottomNav";
-import { api, isUuid, mmss, pref, speak } from "@/lib/client/api";
+import { api, isUuid, mmss, needsAuth, pref, speak } from "@/lib/client/api";
+import { PACE_LABEL, paceOf } from "@/lib/pace";
 import { LANGUAGES } from "@/lib/languages";
 import {
   Play,
@@ -66,6 +67,7 @@ function RecordedLectureContent({
   const [segments, setSegments] = useState<Segment[]>([]);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState("");
+  const [role, setRole] = useState<"teacher" | "student">("student");
   const [cues, setCues] = useState<Cue[]>([]);
   const [notes, setNotes] = useState<Notes | null>(null);
   const [notesEn, setNotesEn] = useState<Notes | null>(null);
@@ -101,16 +103,9 @@ function RecordedLectureContent({
     if ((PLAYER_LANGS as readonly string[]).includes(l)) setSelectedCaptionLang(l as PlayerLang);
   }, []);
 
-  // Resolve demo links ("demo", "demo-live-01") to the latest finished lecture.
   useEffect(() => {
-    if (isUuid(id)) return;
-    api<{ lectures: { id: string }[] }>("/api/lectures?status=ready")
-      .then(({ lectures }) => {
-        if (lectures[0]) router.replace(`/student/lectures/${lectures[0].id}${searchParams?.get("tab") ? `?tab=${searchParams.get("tab")}` : ""}`);
-        else setLoadError("No recorded lectures yet. End a live class or upload a recording from the teacher dashboard.");
-      })
-      .catch((err) => setLoadError((err as Error).message));
-  }, [id, router, searchParams]);
+    if (!isUuid(id)) setLoadError("Lecture not found.");
+  }, [id]);
 
   // Lecture + segments; poll while it is still being transcribed / summarised.
   useEffect(() => {
@@ -119,8 +114,9 @@ function RecordedLectureContent({
     let timer: ReturnType<typeof setTimeout>;
     const load = async () => {
       try {
-        const data = await api<{ lecture: Lecture; segments: Segment[]; mediaUrl: string | null }>(`/api/lectures/${id}`);
+        const data = await api<{ lecture: Lecture; segments: Segment[]; mediaUrl: string | null; me: { role: "teacher" | "student" } }>(`/api/lectures/${id}`);
         if (stop) return;
+        setRole(data.me.role);
         if (data.lecture.id !== id) {
           router.replace(`/student/lectures/${data.lecture.id}`);
           return;
@@ -131,6 +127,10 @@ function RecordedLectureContent({
         if (data.lecture.status !== "ready" && data.lecture.status !== "failed") timer = setTimeout(load, 3000);
       } catch (err) {
         if (stop) return;
+        if (needsAuth(err)) {
+          setLoadError("This lecture belongs to a classroom you haven't joined on this device. Join with the class PIN first.");
+          return;
+        }
         // A live class that is still running has no lecture yet.
         setLoadError((err as Error).message);
         timer = setTimeout(load, 4000);
@@ -211,7 +211,7 @@ function RecordedLectureContent({
   const topHotspot = [...hotspots].sort((a, b) => b.count - a.count)[0];
   const words = segments.reduce((n, sg) => n + sg.text.split(/\s+/).filter(Boolean).length, 0);
   const lectureWpm = totalTimeSec > 30 ? Math.round((words / totalTimeSec) * 60) : 0;
-  const paceText = lectureWpm === 0 ? "Pace: n/a" : lectureWpm > 160 ? `Too Fast (${lectureWpm} WPM)` : lectureWpm < 90 ? `Slow Pace (${lectureWpm} WPM)` : `Optimal Pace (${lectureWpm} WPM)`;
+  const paceText = lectureWpm === 0 ? "Pace: n/a" : `${PACE_LABEL[paceOf(lectureWpm)]} pace (${lectureWpm} WPM)`;
   const langLabel = (l: string) => LANGUAGES.find((x) => x.code === l)?.native ?? l;
   const speechLocale = (l: string) => LANGUAGES.find((x) => x.code === l)?.speech ?? "en-IN";
   const subtitleSize = textSize === "sm" ? "text-xs" : textSize === "lg" ? "text-lg" : "text-sm";
@@ -278,7 +278,7 @@ function RecordedLectureContent({
       const marks: number[] = JSON.parse(localStorage.getItem(key) || "[]");
       localStorage.setItem(key, JSON.stringify([...marks, Math.round(currentTimeSec)]));
     } catch {}
-    alert(`Marked ${mmss(currentTimeSec)} for your personal review revision notes.`);
+    alert(`Bookmarked ${mmss(currentTimeSec)} on this device to revise later.`);
   };
 
   if (!lecture) {
@@ -286,8 +286,8 @@ function RecordedLectureContent({
       <div className="min-h-screen bg-[#F8FAFC] p-8 text-center text-sm text-[#475569]">
         {loadError || "Loading lecture hub..."}{" "}
         {loadError && (
-          <Link href="/student" className="text-[#1E3A8A] underline font-bold">
-            Back
+          <Link href={loadError.includes("PIN") ? "/join" : "/student"} className="text-[#1E3A8A] underline font-bold">
+            {loadError.includes("PIN") ? "Join with PIN" : "Back"}
           </Link>
         )}
       </div>
@@ -301,7 +301,7 @@ function RecordedLectureContent({
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link
-              href="/student"
+              href={role === "teacher" ? "/teacher/dashboard" : "/student"}
               className="w-9 h-9 rounded-xl border border-[#E2E8F0] flex items-center justify-center text-[#475569] hover:bg-[#F1F5F9] transition"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -575,7 +575,7 @@ function RecordedLectureContent({
           <p className="text-xs text-[#475569] mb-4">
             {topHotspot ? (
               <>
-                {topHotspot.count} student{topHotspot.count === 1 ? "" : "s"} requested review at timestamp{" "}
+                {topHotspot.count} &ldquo;I&apos;m lost&rdquo; tap{topHotspot.count === 1 ? "" : "s"} during the live class at{" "}
                 <button onClick={() => seek(topHotspot.offset_s)} className="font-bold text-[#1E3A8A] underline">
                   {mmss(topHotspot.offset_s)}
                 </button>
@@ -590,7 +590,7 @@ function RecordedLectureContent({
             className="w-full h-12 rounded-2xl bg-[#FEF3C7] border-2 border-[#D97706] text-[#92400E] font-bold text-xs flex items-center justify-center gap-2 hover:bg-[#FDE68A] transition active:scale-95"
           >
             <HelpCircle className="w-4 h-4" />
-            <span>Tap if Lost (Anonymous)</span>
+            <span>Bookmark this moment to revise</span>
           </button>
         </section>
 

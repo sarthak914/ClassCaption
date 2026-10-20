@@ -23,12 +23,35 @@ API for **ClassCaption**, an AI classroom companion with live translated caption
    ```
    In a second terminal, watch captions arrive over Realtime the way a student phone would:
    ```bash
-   node --env-file=.env.local scripts/listen.mjs <JOIN_CODE> hi
+   node --env-file=.env.local scripts/listen.mjs <CLASS_ID> hi
    ```
 
 ## Deploy
 
 Push to GitHub, import the repo in Vercel, add the environment variables, then deploy. Run `node scripts/demo.mjs https://<app>.vercel.app` against the deployment.
+
+## Docker
+
+One image works for any Supabase project: keys are read when the container starts, never baked into the image (`.env*` is excluded from the build).
+
+```bash
+docker compose up --build -d          # builds and starts on http://localhost:3000
+docker compose logs -f                # watch it
+docker compose down                   # stop
+```
+
+Or without compose: `docker build -t classcaption .` then `docker run -p 3000:3000 --env-file .env.local classcaption`.
+
+**Published image** (Windows/Intel and Apple Silicon Macs): [`sarthak914/classcaption`](https://hub.docker.com/r/sarthak914/classcaption). No build needed, just a `.env.local` with your own keys (see `.env.example`):
+
+```bash
+docker run -p 3000:3000 --env-file .env.local sarthak914/classcaption
+```
+
+- **Join QR code:** inside Docker the app can't see the laptop's Wi-Fi address, so add `PUBLIC_BASE_URL=http://<laptop-wifi-ip>:3000` to `.env.local` (find the IP with `ipconfig`).
+- **Teacher mic:** open the teacher page at `http://localhost:3000` on the laptop running Docker; browsers only allow the microphone on localhost or https.
+- **Publish to Docker Hub:** `docker login`, then `docker buildx build --platform linux/amd64,linux/arm64 -t <your-user>/classcaption:latest --push .` (both PC and Apple Silicon). Anyone can then run it with their own `.env.local`. The image holds no keys.
+- **Mac: creating `.env.local`:** TextEdit saves it as `.env.local.txt`. In Terminal run `nano .env.local`, paste, then Ctrl+O, Enter, Ctrl+X (or rename with `mv .env.local.txt .env.local`).
 
 ## Translation providers
 
@@ -48,8 +71,19 @@ scripts/listen.mjs           Realtime listener (acts as a student phone)
 scripts/board.mjs            board capture test: node scripts/board.mjs photo.jpg hi http://127.0.0.1:4000
 ```
 
+## Accounts and joining
+
+- **Teachers** create an account at `/teacher/login` (name, email, password; passwords are hashed with scrypt). A teacher sees and controls only their own classrooms, live classes and recordings. The first teacher to sign up inherits classrooms created before accounts existed.
+- **Students** join at `/join` with the classroom PIN or by scanning the QR code from the teacher's "Join QR" button, and enter their name. The device gets a signed, HttpOnly pass for that classroom only: no account needed. Questions carry the name from the pass (or none, if asked anonymously), so nobody can post as someone else.
+- Teachers can make a **new PIN** at any time; the old one stops working for new joins.
+- Moderation: student questions, "Speak for me" text and names are checked for abuse (English, Hindi and Hinglish, including disguised spellings) before the teacher sees them or the laptop reads them aloud. Blocked messages are never saved; the teacher sees who tried, and three tries in 10 minutes mute that student for 10 minutes.
+- Rate limits: PIN attempts (15 per 10 min per network), sign-ins, "I'm lost" (once per 10 s per student), questions, explain and Ask-the-lecture.
+- Browsers can read only `captions` and `class_events` from Supabase (needed for Realtime). PINs, student questions and names, lectures and teacher accounts are only served by the API after a permission check. Announcements, board scans and "class ended" are written by the server, so students can't fake them.
+- `node scripts/demo.mjs` also checks that strangers and students are refused where they should be.
+
 ## Known limits (prototype)
 
-- No login yet. Anyone with a join code can join, and anyone with the URL can call the API.
+- Sessions are signed cookies with no server-side revocation list (signing out clears the cookie; changing `SESSION_SECRET` logs everyone out). Rate limits live in memory, so they reset when the server restarts.
+- Anyone who learns a live class id can read its captions over Realtime; ids are random UUIDs and only shown after joining. The teacher's in-progress (grey) words are broadcast on the same channel without a signature.
 - Uploads are capped at 50 MB by Supabase Storage on the free plan. The server extracts and chunks audio itself (ffmpeg), so Groq's 25 MB limit doesn't apply.
 - Free-tier rate limits on Gemini and Groq apply. The translator chain falls back automatically.
