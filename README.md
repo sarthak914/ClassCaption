@@ -42,9 +42,16 @@ docker compose down                   # stop
 
 Or without compose: `docker build -t classcaption .` then `docker run -p 3000:3000 --env-file .env.local classcaption`.
 
+**Published image** (Windows/Intel and Apple Silicon Macs): [`sarthak914/classcaption`](https://hub.docker.com/r/sarthak914/classcaption). No build needed, just a `.env.local` with your own keys (see `.env.example`):
+
+```bash
+docker run -p 3000:3000 --env-file .env.local sarthak914/classcaption
+```
+
 - **Join QR code:** inside Docker the app can't see the laptop's Wi-Fi address, so add `PUBLIC_BASE_URL=http://<laptop-wifi-ip>:3000` to `.env.local` (find the IP with `ipconfig`).
 - **Teacher mic:** open the teacher page at `http://localhost:3000` on the laptop running Docker; browsers only allow the microphone on localhost or https.
-- **Publish to Docker Hub:** `docker login`, then `docker tag classcaption <your-user>/classcaption:latest` and `docker push <your-user>/classcaption:latest`. Anyone can then run it with their own `.env.local`. The image holds no keys.
+- **Publish to Docker Hub:** `docker login`, then `docker buildx build --platform linux/amd64,linux/arm64 -t <your-user>/classcaption:latest --push .` (both PC and Apple Silicon). Anyone can then run it with their own `.env.local`. The image holds no keys.
+- **Mac: creating `.env.local`:** TextEdit saves it as `.env.local.txt`. In Terminal run `nano .env.local`, paste, then Ctrl+O, Enter, Ctrl+X (or rename with `mv .env.local.txt .env.local`).
 
 ## Translation providers
 
