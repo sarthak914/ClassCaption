@@ -157,10 +157,18 @@ export async function finishLiveLecture(lectureId: string) {
 export async function notesIn(id: string, lang: string): Promise<Notes> {
   const lec = await getLecture(id);
   const lectureId: string = lec.id;
-  if (lec.notes?.[lang]) return lec.notes[lang];
+  const cached: Notes | undefined = lec.notes?.[lang];
+  if (cached?.practice_questions) return cached;
   const segs = await getSegments(lectureId);
   if (!segs.length) throw new HttpError(409, `Lecture is not ready yet (status: ${lec.status})`);
-  const notes = await generateNotes(segs, lang);
+  // Notes made before practice questions existed are regenerated once; if that fails, keep the old ones.
+  let notes: Notes;
+  try {
+    notes = await generateNotes(segs, lang);
+  } catch (e) {
+    if (cached) return cached;
+    throw e;
+  }
   const fresh = await getLecture(lectureId);
   await setStatus(lectureId, { notes: { ...(fresh.notes ?? {}), [lang]: notes } });
   return notes;

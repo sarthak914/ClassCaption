@@ -10,5 +10,5 @@ export const GET = route(async () => {
   const teacher = t
     ? (await supabaseAdmin().from("teachers").select("id,name,email,institution,department").eq("id", t.tid).maybeSingle()).data
     : null;
-  return ok({ teacher, student: s ? { name: s.name, classrooms: s.rooms.length } : null });
+  return ok({ teacher, student: s ? { name: s.name, classrooms: s.rooms.length, account: !!s.acct } : null });
 });
