@@ -10,6 +10,7 @@ import { SpeakForMeModal } from "@/components/live/SpeakForMeModal";
 import { AskQuestionModal } from "@/components/live/AskQuestionModal";
 import { createClient } from "@/lib/supabase/client";
 import { useWakeLock } from "@/lib/client/wakeLock";
+import { useCaptionVoice } from "@/lib/client/captionVoice";
 import { LanguageCode, LANGUAGES } from "@/lib/languages";
 import { api, isUuid, needsAuth, pref, setPref, sourceLabel, speak as speakAloud, techTerms } from "@/lib/client/api";
 import {
@@ -22,6 +23,8 @@ import {
   SunMoon,
   Megaphone,
   Check,
+  Headphones,
+  MessageSquareReply,
 } from "lucide-react";
 
 interface LiveCaptionEvent {
@@ -48,7 +51,30 @@ type CaptionRow = { seq: number; text: string; translations: Record<string, stri
 type ClassEvent =
   | { kind: "announcement"; payload: { text: string; translations: Record<string, string> } }
   | { kind: "board"; payload: { board: Board; translations: Record<string, string[]> } }
-  | { kind: "ended"; payload: { lecture_id: string } };
+  | { kind: "ended"; payload: { lecture_id: string } }
+  | { kind: "answer"; payload: AnswerPayload };
+
+type Translated = { text: string; lang: string; translations: Record<string, string> };
+type AnswerPayload = { question_id: number; question: Translated; answer: Translated };
+type AnswerItem = AnswerPayload & { mine: boolean; at: number };
+type MyQuestion = { id: number; text: string };
+
+/** A teacher's text in my language: the translation, the original if I read that language, else English. */
+const inLang = (t: Translated, lang: string) => t.translations?.[lang] || (t.lang === lang ? t.text : t.translations?.en || t.text);
+
+/** Ids of questions I asked in this class, kept for the session so a reload still knows which answers are mine. */
+function myQuestions(classId: string): MyQuestion[] {
+  try {
+    return JSON.parse(sessionStorage.getItem(`cc_q_${classId}`) || "[]");
+  } catch {
+    return [];
+  }
+}
+function saveMyQuestions(classId: string, list: MyQuestion[]) {
+  try {
+    sessionStorage.setItem(`cc_q_${classId}`, JSON.stringify(list.slice(-30)));
+  } catch {}
+}
 
 type Board = {
   title: string;
@@ -101,6 +127,14 @@ function StudentLiveLectureContent({
   const [board, setBoard] = useState<Board | null>(null);
   const [studentName, setStudentName] = useState("");
   const [needJoin, setNeedJoin] = useState(false);
+  const [answers, setAnswers] = useState<AnswerItem[]>([]);
+  const [mine, setMine] = useState<MyQuestion[]>([]);
+  const mineRef = useRef<MyQuestion[]>([]);
+  // Listen mode: the phone reads each caption aloud in my language (earphones in).
+  const [listening, setListening] = useState(false);
+  const [rate, setRate] = useState(1);
+  const listeningRef = useRef(false);
+  const spokenSeqRef = useRef(-1);
   // Keep the phone screen on while captions are coming in.
   useWakeLock(!!cls && isLive);
 
@@ -128,7 +162,28 @@ function StudentLiveLectureContent({
     const l = pref("lang", "hi");
     langRef.current = l;
     setSelectedLang(l);
+    setRate(Number(pref("rate", "1")) || 1);
   }, []);
+
+  useEffect(() => {
+    if (!classId) return;
+    mineRef.current = myQuestions(classId);
+    setMine(mineRef.current);
+  }, [classId]);
+
+  const speechCode = LANGUAGES.find((l) => l.code === selectedLang)?.speech ?? "en-IN";
+  const voice = useCaptionVoice(speechCode, rate);
+  const voiceRef = useRef(voice);
+  voiceRef.current = voice;
+
+  /** Adds a teacher answer (live event or on load), newest first, marking the ones to my own questions. */
+  const addAnswer = (p: AnswerPayload, at: number) => {
+    const isMine = mineRef.current.some((m) => m.id === p.question_id);
+    setAnswers((prev) =>
+      [{ ...p, mine: isMine, at }, ...prev.filter((a) => a.question_id !== p.question_id)].sort((a, b) => b.at - a.at).slice(0, 10),
+    );
+    return isMine;
+  };
 
   // A classroom link ("classroom-<id>") waits here until the teacher goes live.
   useEffect(() => {
@@ -172,7 +227,7 @@ function StudentLiveLectureContent({
     const data = await api<{
       class: ClassInfo;
       captions: CaptionRow[];
-      events?: { announcement: ClassEvent | null; board: ClassEvent | null };
+      events?: { announcement: ClassEvent | null; board: ClassEvent | null; answers?: (ClassEvent & { created_at: string })[] };
       me: { role: string; name?: string };
     }>(`/api/class/${id}?lang=${lang}&limit=40`);
     setPingMs(Math.round(performance.now() - t0));
@@ -182,6 +237,7 @@ function StudentLiveLectureContent({
     if (a?.kind === "announcement") setAnnouncement(a.payload.translations?.[lang] || a.payload.text);
     const b = data.events?.board;
     if (b?.kind === "board") setBoard(boardIn(b.payload, lang));
+    for (const ev of data.events?.answers ?? []) if (ev.kind === "answer") addAnswer(ev.payload, new Date(ev.created_at).getTime());
     if (data.class.status === "ended") {
       alert("This lecture has ended. Opening the recorded lecture with AI notes...");
       goToNotes(data.class);
@@ -200,10 +256,44 @@ function StudentLiveLectureContent({
   }, [classId, selectedLang]);
 
   const changeLang = (code: LanguageCode) => {
+    voice.stop();
     langRef.current = code;
     setPref("lang", code);
     setSelectedLang(code);
     channelRef.current?.track({ role: "student", lang: code });
+  };
+
+  /** A caption line in my language, or "" while its translation is still on the way. */
+  const srcBase = cls?.source_lang?.split("-")[0];
+  const lineIn = (c: LiveCaptionEvent) => c.translations[selectedLang] || (selectedLang === srcBase ? c.sourceText : "");
+
+  // Listen mode: read each new line aloud once it is in my language.
+  useEffect(() => {
+    listeningRef.current = listening;
+    if (!listening) return;
+    const fresh = captions.filter((c) => c.seq > spokenSeqRef.current && lineIn(c));
+    if (!fresh.length) return;
+    spokenSeqRef.current = fresh.at(-1)!.seq;
+    for (const c of fresh.slice(-2)) voice.say(lineIn(c));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [captions, listening, selectedLang]);
+
+  const toggleListen = () => {
+    if (listening) {
+      voice.stop();
+      setListening(false);
+      return;
+    }
+    setListening(true);
+    const last = captions.at(-1);
+    spokenSeqRef.current = last?.seq ?? -1;
+    // Speaking inside the tap also unlocks audio on iPhones.
+    voice.say((last && lineIn(last)) || (LANGUAGES.find((l) => l.code === selectedLang)?.native ?? ""));
+  };
+
+  const changeRate = (r: number) => {
+    setRate(r);
+    setPref("rate", String(r));
   };
 
   // Auto-scroll when captions arrive
@@ -273,8 +363,15 @@ function StudentLiveLectureContent({
           } else if (ev.kind === "announcement") {
             setAnnouncement(ev.payload.translations?.[lang] || ev.payload.text);
             if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([200, 100, 200]);
+            if (listeningRef.current) voiceRef.current.say(ev.payload.translations?.[lang] || ev.payload.text);
           } else if (ev.kind === "board") {
             setBoard(boardIn(ev.payload, lang));
+          } else if (ev.kind === "answer") {
+            const isMine = addAnswer(ev.payload, Date.now());
+            if (isMine) {
+              if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([120, 80, 120, 80, 240]);
+              if (listeningRef.current) voiceRef.current.say(inLang(ev.payload.answer, lang));
+            }
           }
         },
       )
@@ -311,7 +408,7 @@ function StudentLiveLectureContent({
 
   const handleSpeakOrQuestion = async (text: string, kind: "speak" | "question", isAnonymous = false) => {
     if (!classId) throw new Error("No live class");
-    await api(`/api/class/${classId}/react`, {
+    const { reaction } = await api<{ reaction: { id: number } }>(`/api/class/${classId}/react`, {
       json: {
         kind,
         text,
@@ -320,6 +417,11 @@ function StudentLiveLectureContent({
         anonymous: isAnonymous,
       },
     });
+    if (kind === "question" && reaction?.id) {
+      mineRef.current = [...mineRef.current, { id: reaction.id, text }];
+      setMine(mineRef.current);
+      saveMyQuestions(classId, mineRef.current);
+    }
   };
 
   const openTerm = async (term: string, context?: string) => {
@@ -457,6 +559,21 @@ function StudentLiveLectureContent({
             </span>
 
             <div className="flex items-center gap-2">
+              {voice.supported && (
+                <button
+                  onClick={toggleListen}
+                  aria-pressed={listening}
+                  title="Hear the captions in your language through earphones"
+                  className={`px-2.5 h-7 rounded-md text-[11px] font-semibold border transition inline-flex items-center gap-1 ${
+                    listening
+                      ? highContrast ? "border-chalk-yellow/60 text-chalk-yellow bg-white/5" : "border-haldi-line text-haldi-ink bg-haldi-wash"
+                      : highContrast ? "border-board-line text-chalk-dim hover:text-chalk" : "border-rule text-ink-3 hover:text-ink"
+                  }`}
+                >
+                  <Headphones className="w-3.5 h-3.5" />
+                  {listening ? "Listening" : "Listen"}
+                </button>
+              )}
               <button
                 onClick={() => setAutoScroll(!autoScroll)}
                 className={`px-2.5 h-7 rounded-md text-[11px] font-semibold border transition ${
@@ -480,6 +597,41 @@ function StudentLiveLectureContent({
               </button>
             </div>
           </div>
+
+          {/* Listen mode: speed, and a hint when the phone has no voice for this language */}
+          {listening && (
+            <div
+              className={`px-4 py-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b text-[11px] ${
+                highContrast ? "border-board-line text-chalk-dim" : "border-rule text-ink-3"
+              }`}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${highContrast ? "bg-chalk-yellow" : "bg-haldi"}`} />
+                Reading aloud in {LANGUAGES.find((l) => l.code === selectedLang)?.name ?? selectedLang}
+              </span>
+              <span className="inline-flex items-center gap-1 ml-auto" role="group" aria-label="Reading speed">
+                {[0.8, 1, 1.25].map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => changeRate(r)}
+                    aria-pressed={rate === r}
+                    className={`h-6 px-2 rounded font-mono font-bold border transition ${
+                      rate === r
+                        ? highContrast ? "border-chalk-yellow/60 text-chalk-yellow" : "border-haldi-line text-haldi-ink bg-haldi-wash"
+                        : highContrast ? "border-board-line" : "border-rule"
+                    }`}
+                  >
+                    {r}x
+                  </button>
+                ))}
+              </span>
+              {!voice.hasVoice && (
+                <p className={`w-full ${highContrast ? "text-chalk-pink" : "text-sindoor-deep"}`}>
+                  This phone has no {LANGUAGES.find((l) => l.code === selectedLang)?.name} voice yet. Add it in Settings → Text-to-speech, or pick another language.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Caption stream */}
           <div className={`py-5 pr-5 space-y-4 max-h-[420px] overflow-y-auto no-scrollbar ${highContrast ? "pl-5" : "pl-14"}`}>
@@ -558,6 +710,53 @@ function StudentLiveLectureContent({
             <button onClick={() => setAnnouncement("")} className="text-xs font-bold underline flex-shrink-0">
               Dismiss
             </button>
+          </section>
+        )}
+
+        {/* Answers from the teacher, in my language. Mine first and highlighted. */}
+        {(answers.length > 0 || mine.some((m) => !answers.some((a) => a.question_id === m.id))) && (
+          <section className="space-y-2.5">
+            <span className="cc-eyebrow px-0.5 block">Questions and answers</span>
+            {mine
+              .filter((m) => !answers.some((a) => a.question_id === m.id))
+              .slice(-3)
+              .map((m) => (
+                <div key={m.id} className="rounded-[var(--radius-card)] border border-dashed border-rule-strong px-4 py-3 text-sm text-ink-2 flex items-start justify-between gap-3">
+                  <span className="min-w-0">&ldquo;{m.text}&rdquo;</span>
+                  <span className="text-[11px] font-mono text-ink-3 flex-shrink-0">Waiting for an answer</span>
+                </div>
+              ))}
+            {[...answers].sort((a, b) => Number(b.mine) - Number(a.mine)).map((a) => (
+              <article
+                key={a.question_id}
+                className={`cc-card p-4 space-y-2.5 ${a.mine ? "!border-patta-line border-l-4 !border-l-patta animate-chalk-in" : ""}`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`cc-stamp ${a.mine ? "text-patta" : "text-ink-3"}`}>
+                    <MessageSquareReply className="w-3 h-3" />
+                    {a.mine ? "Your teacher answered you" : "Answered for the class"}
+                  </span>
+                  <button
+                    onClick={() => speakAloud(inLang(a.answer, selectedLang), speechCode, rate)}
+                    aria-label="Read the answer aloud"
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-neel hover:bg-neel-wash transition"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                  </button>
+                </div>
+                <p lang={selectedLang} className="text-sm text-ink-3 leading-relaxed">
+                  <span className="font-semibold text-ink-2">Q. </span>
+                  {inLang(a.question, selectedLang)}
+                </p>
+                <p lang={selectedLang} className="text-[1.05rem] text-ink leading-relaxed">{inLang(a.answer, selectedLang)}</p>
+                {a.answer.lang !== selectedLang && (
+                  <details className="text-xs text-ink-3">
+                    <summary className="cursor-pointer font-semibold text-neel">What the teacher wrote</summary>
+                    <p lang={a.answer.lang} className="mt-1">{a.answer.text}</p>
+                  </details>
+                )}
+              </article>
+            ))}
           </section>
         )}
 

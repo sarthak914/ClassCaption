@@ -49,7 +49,8 @@ export const GET = route(async (req: Request, { params }: Ctx<{ id: string }>) =
     window_s: windowS,
     wpm,
     pace,
-    questions: questions.data ?? [],
+    // The asker's pass id stays on the server; it is only used to route the answer back.
+    questions: (questions.data ?? []).map(({ student_sid: _s, ...q }) => q),
     blocked: blockedFor(id),
   });
 });

@@ -80,6 +80,15 @@ Questions on a recorded lecture are answered with retrieval: the transcript is s
 - **Typed captions:** the teacher can type a line under "Teacher audio" (noisy room, mic trouble, a formula). It is translated and sent to every student like speech.
 - **QR join:** phones scan the projector QR with their own camera app. The in-page scanner on `/join` works on Chrome/Edge (BarcodeDetector) and on iPhone Safari and Firefox (jsQR), wherever the page is on https or localhost.
 
+## After class
+
+Run the v6 part of `supabase/schema.sql` first.
+
+- **Listen mode:** on the live page a student taps *Listen* and the phone reads each caption aloud in their language (earphones in), with a speed control. It uses the phone's own voices, so it costs nothing and works on a weak network.
+- **Answers across languages:** the teacher taps *Answer* on a question in the queue. The answer goes back in the asker's language, and every other student sees the question and answer in theirs.
+- **Class report** (`/teacher/insights/<lecture id>`, opened when a class ends): confusion spikes on a timeline, open questions with suggested answers, pace, languages, quiz and revision scores, and AI advice on what to revisit and how to open the next class.
+- **Spaced revision:** everyone who attended gets 3 questions the next morning in their language, then on day 3 and day 7, at `/student/revise`; missed questions come back. With `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` set (`npx web-push generate-vapid-keys`) students can also get a phone notification (https only). Vercel Cron sends them at 9:00 IST (`vercel.json`, set `CRON_SECRET`); Docker and `npm start` send them every 15 minutes on their own. The teacher's *Send revision now* button on the report opens the round straight away, for demos.
+
 ## Layout
 
 ```

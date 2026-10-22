@@ -47,20 +47,21 @@ export const POST = route(async (req: Request, { params }: Ctx<{ id: string }>) 
     const checks = await Promise.all([text, ...(text_en && text_en !== text ? [text_en] : [])].map((t) => isInappropriate(t)));
     if (checks.some(Boolean)) rejectMessage(id, sid, viewer.student.name, b.kind);
   }
-  const { data, error } = await supabaseAdmin()
-    .from("reactions")
-    .insert({
-      class_id: id,
-      kind: b.kind,
-      text: typed ? text : null,
-      lang: b.lang ?? null,
-      text_en: text_en ?? (typed ? text : null),
-      student_name: typed && !b.anonymous ? viewer.student.name : null,
-      caption_seq: typeof b.captionSeq === "number" ? b.captionSeq : null,
-      offset_s: Math.max(0, (Date.now() - new Date(cls.started_at).getTime()) / 1000),
-    })
-    .select("id,kind,created_at")
-    .single();
+  const row = {
+    class_id: id,
+    kind: b.kind,
+    text: typed ? text : null,
+    lang: b.lang ?? null,
+    text_en: text_en ?? (typed ? text : null),
+    student_name: typed && !b.anonymous ? viewer.student.name : null,
+    student_sid: sid, // for the class report (distinct askers); never sent to the teacher
+    caption_seq: typeof b.captionSeq === "number" ? b.captionSeq : null,
+    offset_s: Math.max(0, (Date.now() - new Date(cls.started_at).getTime()) / 1000),
+  };
+  const insert = (r: Record<string, unknown>) => supabaseAdmin().from("reactions").insert(r).select("id,kind,created_at").single();
+  let { data, error } = await insert(row);
+  // Before schema v6 there is no student_sid column: save the question anyway.
+  if (error?.code === "PGRST204") ({ data, error } = await insert({ ...row, student_sid: undefined }));
   if (error) throw error;
   return ok({ reaction: { ...data, text_en } }, 201);
 });

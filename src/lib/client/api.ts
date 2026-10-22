@@ -33,15 +33,17 @@ export function mmss(secs: number) {
 /** 401 → the session is missing or expired; 403 → signed in but not allowed here. */
 export const needsAuth = (err: unknown) => err instanceof ApiError && (err.status === 401 || err.status === 403);
 
-/** Per-device preferences (language, name). Never required for the page to work. */
-export function pref(key: "lang" | "name", fallback: string): string {
+type PrefKey = "lang" | "name" | "listen" | "rate";
+
+/** Per-device preferences (language, name, read-aloud). Never required for the page to work. */
+export function pref(key: PrefKey, fallback: string): string {
   try {
     return localStorage.getItem(`cc_${key}`) || fallback;
   } catch {
     return fallback;
   }
 }
-export function setPref(key: "lang" | "name", value: string) {
+export function setPref(key: PrefKey, value: string) {
   try {
     localStorage.setItem(`cc_${key}`, value);
   } catch {}
