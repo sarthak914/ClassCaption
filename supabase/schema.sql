@@ -180,5 +180,35 @@ drop policy if exists "public read" on public.segments;
 -- and translation always spell the same way.
 alter table public.classrooms add column if not exists glossary text;
 
+-- ---------------------------------------------------------------------------
+-- v5: "Ask the lecture" retrieval (RAG). Transcript chunks with Gemini embeddings in pgvector;
+-- a question is embedded and only the closest chunks go to the LLM. Filled on first question.
+create extension if not exists vector;
+create table if not exists public.segment_chunks (
+  lecture_id uuid not null references public.lectures(id) on delete cascade,
+  chunk      int  not null,
+  start_idx  int  not null,
+  end_idx    int  not null,
+  start_s    real not null,
+  text       text not null,
+  embedding  vector(768) not null,
+  primary key (lecture_id, chunk)
+);
+create index if not exists segment_chunks_embedding on public.segment_chunks using hnsw (embedding vector_cosine_ops);
+alter table public.segment_chunks enable row level security; -- server only, no public policy
+
+create or replace function public.match_segment_chunks(p_lecture uuid, p_query vector(768), p_count int default 6)
+returns table (chunk int, start_idx int, end_idx int, start_s real, text text, similarity float)
+language sql stable
+set search_path = public, extensions
+as $$
+  select c.chunk, c.start_idx, c.end_idx, c.start_s, c.text, 1 - (c.embedding <=> p_query) as similarity
+  from public.segment_chunks c
+  where c.lecture_id = p_lecture
+  order by c.embedding <=> p_query
+  limit greatest(1, least(p_count, 20));
+$$;
+revoke execute on function public.match_segment_chunks(uuid, vector, int) from public, anon, authenticated;
+
 -- Make the API see the new tables/columns right away.
 notify pgrst, 'reload schema';

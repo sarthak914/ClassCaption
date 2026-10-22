@@ -15,6 +15,7 @@ export async function GET() {
     bhashini: !!(process.env.BHASHINI_USER_ID && process.env.BHASHINI_API_KEY),
   };
   let database: string = "not checked";
+  let askRetrieval = "full transcript (no GEMINI_API_KEY)";
   try {
     const db = supabaseAdmin();
     const checks = await Promise.all(
@@ -26,6 +27,10 @@ export async function GET() {
     const { error: bErr } = await db.storage.getBucket("lectures");
     const problems = [...checks.filter(Boolean), ...(bErr ? [`bucket lectures: ${bErr.message}`] : [])];
     database = problems.length ? `missing: ${problems.join("; ")} (run supabase/schema.sql)` : "ok";
+    if (env.gemini && process.env.ASK_RETRIEVAL !== "off") {
+      const { error } = await db.from("segment_chunks").select("chunk", { head: true }).limit(1);
+      askRetrieval = error ? "full transcript (run the v5 part of supabase/schema.sql for pgvector)" : "pgvector";
+    }
   } catch (e) {
     database = (e as Error).message;
   }
@@ -34,6 +39,7 @@ export async function GET() {
     env,
     database,
     gemini_model: geminiModel(),
+    ask_retrieval: askRetrieval,
     translation_providers: process.env.TRANSLATION_PROVIDERS || "bhashini,groq,gemini,google",
   });
 }

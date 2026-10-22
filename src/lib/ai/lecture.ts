@@ -48,9 +48,12 @@ export type Answer = {
   citations: { idx: number; start_s: number; quote: string }[];
 };
 
-export async function askLecture(segs: Seg[], question: string, lang = "en"): Promise<Answer> {
+/** `excerpts`: segs are only the parts of the transcript retrieved for this question (see lib/rag.ts). */
+export async function askLecture(segs: Seg[], question: string, lang = "en", opts: { excerpts?: boolean } = {}): Promise<Answer> {
   return llmJSON<Answer>(
-    `A student asks a question about a lecture. Answer ONLY from the transcript below.
+    `A student asks a question about a lecture. Answer ONLY from the transcript below.${
+      opts.excerpts ? "\nThese are the excerpts of the transcript that best match the question (line numbers show where gaps are), not the whole lecture." : ""
+    }
 The question may be in any Indian language or Hinglish. Answer in ${langName(lang)} (${lang}), simply, in 2-5 sentences.
 Cite the transcript lines that support the answer so the student can jump to that moment.
 If the lecture does not cover it, say so briefly, set found_in_lecture=false, and give a short general hint.

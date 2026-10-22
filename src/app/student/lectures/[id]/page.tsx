@@ -84,7 +84,7 @@ function RecordedLectureContent({
 
   // AI Q&A State
   const [aiQuestion, setAiQuestion] = useState("");
-  const [aiChat, setAiChat] = useState<Array<{ q: string; a: string; citations?: Citation[] }>>([]);
+  const [aiChat, setAiChat] = useState<Array<{ q: string; a: string; citations?: Citation[]; via?: string }>>([]);
   const [isAsking, setIsAsking] = useState(false);
 
   // Audio narration TTS
@@ -239,10 +239,13 @@ function RecordedLectureContent({
     setIsAsking(true);
     setActiveTab("ask");
     try {
-      const data = await api<{ answer: string; citations: Citation[] }>(`/api/lectures/${lecture.id}/ask`, {
-        json: { question: query, lang: selectedCaptionLang },
-      });
-      setAiChat((prev) => [...prev, { q: query, a: data.answer, citations: data.citations }]);
+      const data = await api<{ answer: string; citations: Citation[]; retrieval?: { method: string; chunks?: number; lines: number } }>(
+        `/api/lectures/${lecture.id}/ask`,
+        { json: { question: query, lang: selectedCaptionLang } },
+      );
+      const r = data.retrieval;
+      const via = r?.method === "pgvector" ? `Searched with pgvector: ${r.chunks} best-matching passages (${r.lines} lines)` : r ? `Read the whole transcript (${r.lines} lines)` : undefined;
+      setAiChat((prev) => [...prev, { q: query, a: data.answer, citations: data.citations, via }]);
       setAiQuestion("");
     } catch (err) {
       setAiChat((prev) => [...prev, { q: query, a: `⚠ ${(err as Error).message}` }]);
@@ -847,6 +850,7 @@ function RecordedLectureContent({
                           ))}
                         </div>
                       )}
+                      {chat.via && <p className="mt-2 text-[10px] text-[#64748B]">{chat.via}</p>}
                     </div>
                   </div>
                 ))}
