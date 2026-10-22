@@ -551,7 +551,7 @@ function TeacherLiveClassroomContent({
 
   const handleEndLecture = async () => {
     if (!cls) return;
-    if (confirm("Are you sure you want to end this lecture? AI notes will be generated immediately.")) {
+    if (confirm("End this lecture? You'll get the class report, AI notes are written for students, and everyone gets revision questions tomorrow morning.")) {
       try {
         endedRef.current = true;
         recorderRef.current?.stop(false);
@@ -559,7 +559,7 @@ function TeacherLiveClassroomContent({
           recognitionRef.current?.stop();
         } catch {}
         const data = await api<{ lectureId: string }>(`/api/class/${cls.id}/end`, { method: "POST" });
-        router.push(`/student/lectures/${data.lectureId}`);
+        router.push(`/teacher/insights/${data.lectureId}`);
       } catch (err) {
         endedRef.current = false;
         alert((err as Error).message);

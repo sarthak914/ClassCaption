@@ -353,12 +353,8 @@ export default function TeacherDashboardPage() {
 
           <div className="grid grid-cols-1 gap-3">
             {lectures.map((lec) => (
-              <Link
-                key={lec.id}
-                href={`/student/lectures/${lec.id}`}
-                className="cc-card p-5 hover:border-rule-strong transition flex items-center justify-between gap-3 group"
-              >
-                <div className="min-w-0">
+              <div key={lec.id} className="cc-card p-5 hover:border-rule-strong transition flex items-center justify-between gap-3 group">
+                <Link href={`/student/lectures/${lec.id}`} className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="cc-stamp text-neel">
                       {lec.classroom?.subject_code || (lec.source === "live" ? "LIVE" : "UPLOAD")}
@@ -376,9 +372,16 @@ export default function TeacherDashboardPage() {
                     {new Date(lec.created_at).toLocaleString()} {lec.duration_s ? `• ${mmss(lec.duration_s)}` : ""}
                     {lec.error ? ` • ${lec.error.slice(0, 80)}` : ""}
                   </p>
-                </div>
-                <ArrowRight className="w-4 h-4 text-ink-3 group-hover:text-neel group-hover:translate-x-0.5 transition flex-shrink-0" />
-              </Link>
+                </Link>
+                {lec.source === "live" && (
+                  <Link href={`/teacher/insights/${lec.id}`} className="cc-btn h-9 px-3 text-xs flex-shrink-0" title="Confusion spikes, open questions and what to revisit">
+                    Report
+                  </Link>
+                )}
+                <Link href={`/student/lectures/${lec.id}`} aria-label={`Open ${lec.title}`} className="flex-shrink-0">
+                  <ArrowRight className="w-4 h-4 text-ink-3 group-hover:text-neel group-hover:translate-x-0.5 transition" />
+                </Link>
+              </div>
             ))}
           </div>
         </section>
