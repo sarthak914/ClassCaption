@@ -61,7 +61,7 @@ docker run -p 3000:3000 --env-file .env.local sarthak914/classcaption
 - **IndicTrans2** (AI4Bharat, open source, no API key): runs on your own machine from [`indictrans2/`](indictrans2/server.py).
   ```bash
   cd indictrans2
-  pip install -r requirements.txt     # torch, transformers, IndicTransToolkit
+  pip install -r requirements.txt     # torch, transformers (IndicTransToolkit optional, needs a C++ compiler)
   python server.py                    # http://localhost:7860, downloads ~1 GB of models on first start
   ```
   Or with Docker: `docker compose --profile indictrans2 up --build -d`. Then set `INDICTRANS2_URL=http://localhost:7860` (`http://indictrans2:7860` inside compose). The distilled 200M models are used by default (laptop CPU); set `INDICTRANS2_SIZE=1B` on a GPU.

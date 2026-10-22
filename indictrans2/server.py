@@ -13,6 +13,7 @@ Uses the distilled 200M models by default (fast enough on a laptop CPU). Set IND
 Indic -> Indic goes through English (two hops), so only two models are ever loaded.
 """
 import os
+import re
 import threading
 import time
 
@@ -23,8 +24,11 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 try:
     from IndicTransToolkit.processor import IndicProcessor
-except ImportError:  # older IndicTransToolkit releases
-    from IndicTransToolkit import IndicProcessor
+except ImportError:
+    try:  # older IndicTransToolkit releases
+        from IndicTransToolkit import IndicProcessor
+    except ImportError:
+        IndicProcessor = None  # not installed (it needs a C++ compiler on Windows): use SimpleProcessor below
 
 # ClassCaption's ISO 639-1 codes -> IndicTrans2 (FLORES) codes.
 CODES = {
@@ -42,7 +46,23 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 BEAMS = int(os.environ.get("INDICTRANS2_BEAMS", "1"))  # 1 = fastest; 4-5 = a little better, slower
 API_KEY = os.environ.get("INDICTRANS2_API_KEY", "")
 
-processor = IndicProcessor(inference=True)
+class SimpleProcessor:
+    """Minimal stand-in for IndicTransToolkit: the language tags the model expects, plus light cleanup.
+    The toolkit also protects URLs/numbers and normalises Indic punctuation, so it is a little better when available."""
+
+    def preprocess_batch(self, sents, src_lang, tgt_lang):
+        return [f"{src_lang} {tgt_lang} " + re.sub(r"\s+", " ", s).strip() for s in sents]
+
+    def postprocess_batch(self, sents, lang):
+        out = []
+        for s in sents:
+            s = re.sub(r"\s+", " ", s).strip()
+            s = re.sub(r"\s+([,.!?;:।)])", r"\1", s)  # no space before punctuation
+            out.append(s)
+        return out
+
+
+processor = IndicProcessor(inference=True) if IndicProcessor else SimpleProcessor()
 loaded: dict = {}
 lock = threading.Lock()
 
@@ -91,7 +111,14 @@ app = FastAPI(title="ClassCaption IndicTrans2")
 
 @app.get("/health")
 def health():
-    return {"ok": True, "device": DEVICE, "size": SIZE, "loaded": sorted(loaded), "languages": sorted(CODES)}
+    return {
+        "ok": True,
+        "device": DEVICE,
+        "size": SIZE,
+        "loaded": sorted(loaded),
+        "processor": "IndicTransToolkit" if IndicProcessor else "simple",
+        "languages": sorted(CODES),
+    }
 
 
 @app.post("/translate")

@@ -1,6 +1,7 @@
 torch>=2.2
 transformers>=4.40,<5
 sentencepiece
-IndicTransToolkit>=1.0.3
 fastapi>=0.110
 uvicorn>=0.29
+# Optional, slightly better pre/post-processing. Needs a C++ compiler (Microsoft C++ Build Tools on Windows):
+#   pip install IndicTransToolkit
