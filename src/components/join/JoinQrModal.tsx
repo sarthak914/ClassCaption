@@ -33,7 +33,7 @@ export function JoinQrModal({ isOpen, onClose, classroomId, classroomName, pin, 
 
   useEffect(() => {
     if (!link) return;
-    QRCode.toString(link, { type: "svg", margin: 1, errorCorrectionLevel: "M", color: { dark: "#0F172A", light: "#FFFFFF" } })
+    QRCode.toString(link, { type: "svg", margin: 1, errorCorrectionLevel: "M", color: { dark: "#1b1d33", light: "#ffffff" } })
       .then(setSvg)
       .catch(() => setSvg(""));
   }, [link]);
@@ -62,40 +62,40 @@ export function JoinQrModal({ isOpen, onClose, classroomId, classroomName, pin, 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs" onClick={onClose}>
-      <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl text-center space-y-4" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60" onClick={onClose}>
+      <div className="cc-card p-6 sm:p-8 max-w-lg w-full text-center space-y-5 animate-chalk-in" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3 text-left">
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Join {classroomName}</span>
-            <h3 className="text-xl font-extrabold text-[#0F172A] font-heading">Scan with your phone camera</h3>
+            <span className="cc-eyebrow">Join {classroomName}</span>
+            <h3 className="text-3xl font-normal">Scan with your phone camera</h3>
           </div>
-          <button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full flex items-center justify-center text-[#64748B] hover:bg-[#F1F5F9]">
+          <button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full flex items-center justify-center text-ink-3 hover:bg-paper-2">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="mx-auto w-full max-w-[320px] aspect-square rounded-2xl border border-[#E2E8F0] p-3 flex items-center justify-center">
+        <div className="mx-auto w-full max-w-[320px] aspect-square rounded-xl border-[1.5px] border-ink bg-white p-3 shadow-[3px_3px_0_var(--color-ink)] flex items-center justify-center">
           {svg ? (
             <div className="w-full h-full [&>svg]:w-full [&>svg]:h-full" dangerouslySetInnerHTML={{ __html: svg }} />
           ) : (
-            <span className="text-sm text-[#64748B]">Making QR code...</span>
+            <span className="text-sm text-ink-3">Making QR code...</span>
           )}
         </div>
 
         <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-[#64748B] block">or enter PIN</span>
-          <span className="text-5xl font-extrabold font-mono tracking-[0.2em] text-[#1E3A8A]">{pin}</span>
+          <span className="cc-eyebrow block mb-1">or enter PIN</span>
+          <span className="text-5xl font-bold font-mono tracking-[0.25em] text-neel">{pin}</span>
         </div>
 
-        <p className="text-xs text-[#475569] break-all">{link || "..."}</p>
-        <p className="text-[11px] text-[#64748B]">Phones must be on the same Wi-Fi or hotspot as this laptop.</p>
+        <p className="text-xs text-ink-2 break-all">{link || "..."}</p>
+        <p className="text-[11px] text-ink-3">Phones must be on the same Wi-Fi or hotspot as this laptop.</p>
 
         <div className="flex flex-wrap justify-center gap-2 pt-1">
-          <button onClick={copy} disabled={!link} className="h-10 px-4 rounded-xl border border-[#CBD5E1] text-[#0F172A] font-bold text-xs flex items-center gap-1.5 hover:bg-[#F1F5F9]">
+          <button onClick={copy} disabled={!link} className="cc-btn h-10 px-4 text-xs">
             <Copy className="w-4 h-4" />
             {copied ? "Copied" : "Copy link"}
           </button>
-          <button onClick={rotate} disabled={rotating} className="h-10 px-4 rounded-xl border border-[#CBD5E1] text-[#0F172A] font-bold text-xs flex items-center gap-1.5 hover:bg-[#F1F5F9] disabled:opacity-60">
+          <button onClick={rotate} disabled={rotating} className="cc-btn h-10 px-4 text-xs">
             <RefreshCw className={`w-4 h-4 ${rotating ? "animate-spin" : ""}`} />
             New PIN
           </button>

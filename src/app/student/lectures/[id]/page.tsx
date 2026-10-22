@@ -3,6 +3,7 @@
 import { use, useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Brand } from "@/components/brand/Brand";
 import { Navbar } from "@/components/navigation/Navbar";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { api, isUuid, mmss, needsAuth, pref, speak } from "@/lib/client/api";
@@ -14,8 +15,6 @@ import {
   Volume2,
   Maximize2,
   Download,
-  CheckCircle2,
-  Sparkles,
   HelpCircle,
   Headphones,
   Bot,
@@ -285,7 +284,7 @@ function RecordedLectureContent({
       setAiChat((prev) => [...prev, { q: query, a: data.answer, citations: data.citations, via }]);
       setAiQuestion("");
     } catch (err) {
-      setAiChat((prev) => [...prev, { q: query, a: `⚠ ${(err as Error).message}` }]);
+      setAiChat((prev) => [...prev, { q: query, a: (err as Error).message }]);
     } finally {
       setIsAsking(false);
     }
@@ -321,22 +320,26 @@ function RecordedLectureContent({
     alert(`Bookmarked ${mmss(currentTimeSec)} on this device to revise later.`);
   };
 
+  const tabCls = "h-11 -mb-px border-b-2 text-sm font-semibold transition";
+  const tabOn = "border-sindoor text-ink";
+  const tabOff = "border-transparent text-ink-3 hover:text-ink";
+
   if (!lecture) {
     return (
-      <div className="min-h-screen bg-[#F8FAFC] p-8 text-center text-sm text-[#475569]">
+      <div className="min-h-screen bg-paper p-8 text-center text-sm text-ink-2">
         {loadError || "Loading lecture hub..."}{" "}
         {loadError &&
           (loadError.includes("PIN") ? (
             <span className="inline-flex gap-3">
-              <Link href={`/student/login?next=/student/lectures/${id}`} className="text-[#1E3A8A] underline font-bold">
+              <Link href={`/student/login?next=/student/lectures/${id}`} className="text-neel underline font-bold">
                 Sign in
               </Link>
-              <Link href="/join" className="text-[#1E3A8A] underline font-bold">
+              <Link href="/join" className="text-neel underline font-bold">
                 Join with PIN
               </Link>
             </span>
           ) : (
-            <Link href="/student" className="text-[#1E3A8A] underline font-bold">
+            <Link href="/student" className="text-neel underline font-bold">
               Back
             </Link>
           ))}
@@ -345,31 +348,30 @@ function RecordedLectureContent({
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-32 text-[#0F172A]">
+    <div className="min-h-screen bg-paper pb-32 text-ink">
       {/* Top Navbar with Back navigation matching Stitch */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-[#E2E8F0] px-4 py-3">
+      <header className="sticky top-0 z-40 bg-paper/95 backdrop-blur-sm border-b border-rule px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link
               href={role === "teacher" ? "/teacher/dashboard" : "/student"}
-              className="w-9 h-9 rounded-xl border border-[#E2E8F0] flex items-center justify-center text-[#475569] hover:bg-[#F1F5F9] transition"
+              aria-label="Back"
+              className="w-9 h-9 rounded-[9px] border border-rule-strong bg-card flex items-center justify-center text-ink-2 hover:bg-paper-2 transition"
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
-            <span className="font-extrabold text-lg tracking-tight text-[#0F172A] font-heading">
-              ClassCaption
-            </span>
+            <Brand href={role === "teacher" ? "/teacher/dashboard" : "/student"} size={32} />
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSelectedCaptionLang(selectedCaptionLang === "en" ? "hi" : "en")}
-              className="h-9 px-3 flex items-center gap-1.5 rounded-lg bg-[#F1F5F9] text-[#0F172A] font-semibold text-xs border border-[#CBD5E1]"
+              className="h-9 px-3 flex items-center gap-1.5 rounded-[9px] bg-card text-ink font-semibold text-xs border border-rule-strong hover:bg-paper-2"
             >
-              <Languages className="w-3.5 h-3.5 text-[#1E3A8A]" />
+              <Languages className="w-3.5 h-3.5 text-neel" />
               <span>{langLabel(selectedCaptionLang)}</span>
             </button>
-            <button onClick={shareLecture} className="w-9 h-9 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-[#475569]">
+            <button onClick={shareLecture} aria-label="Share" className="w-9 h-9 rounded-[9px] border border-rule-strong bg-card flex items-center justify-center text-ink-2 hover:bg-paper-2">
               <Share2 className="w-4 h-4" />
             </button>
           </div>
@@ -378,46 +380,45 @@ function RecordedLectureContent({
 
       <main className="max-w-2xl mx-auto px-4 py-4 space-y-4">
         {/* 1. Header Information matching Stitch */}
-        <section className="bg-white rounded-3xl border border-[#E2E8F0] p-5 shadow-xs">
-          <p className="text-xs font-bold text-[#1E40AF] mb-1">
+        <section className="pt-2">
+          <p className="cc-eyebrow mb-2">
             {lecture.classroom?.name ?? (lecture.source === "live" ? "Live class recording" : "Uploaded recording")}
-            {lecture.classroom?.room ? ` • ${lecture.classroom.room}` : ""}
+            {lecture.classroom?.room ? ` · ${lecture.classroom.room}` : ""}
           </p>
 
-          <h1 className="text-xl sm:text-2xl font-extrabold text-[#0F172A] font-heading mb-3">
+          <h1 className="text-3xl sm:text-4xl font-normal leading-tight mb-3">
             {lecture.title}
           </h1>
 
           <div className="flex flex-wrap items-center gap-2">
             {ready ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ECFDF5] text-[#065F46] text-xs font-bold border border-[#A7F3D0]">
-                <span className="w-2 h-2 rounded-full bg-[#059669]" />
-                Ready • {formatTime(totalTimeSec)} • {segments.length} lines
+              <span className="cc-stamp text-patta">
+                Ready · {formatTime(totalTimeSec)} · {segments.length} lines
               </span>
             ) : lecture.status === "failed" ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FEF2F2] text-[#DC2626] text-xs font-bold border border-[#FECACA]">
+              <span className="cc-stamp text-sindoor normal-case tracking-normal">
                 Failed: {(lecture.error ?? "processing error").slice(0, 80)}
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FEF3C7] text-[#92400E] text-xs font-bold border border-[#FDE68A]">
-                <span className="w-2 h-2 rounded-full bg-[#D97706] animate-pulse" />
-                {lecture.status === "summarising" ? "Writing AI notes" : "Processing"} • {lecture.progress ?? 0}%
+              <span className="cc-stamp text-haldi-deep">
+                <span className="w-1.5 h-1.5 rounded-full bg-haldi-deep animate-pulse" />
+                {lecture.status === "summarising" ? "Writing AI notes" : "Processing"} · {lecture.progress ?? 0}%
               </span>
             )}
 
             <button
               onClick={downloadTranscript}
               disabled={segments.length === 0}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#0F172A] text-xs font-bold transition"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-2 hover:text-neel transition"
             >
-              <Download className="w-3.5 h-3.5 text-[#1E3A8A]" />
+              <Download className="w-3.5 h-3.5 text-neel" />
               <span>Transcript (TXT)</span>
             </button>
           </div>
         </section>
 
         {/* 2. Video Player & Bilingual Caption Stage matching Stitch */}
-        <section ref={stageRef} className="bg-[#0B0F19] text-[#F8FAFC] rounded-3xl border border-white/10 overflow-hidden shadow-xl">
+        <section ref={stageRef} className="cc-board overflow-hidden">
           {/* Video Stage Frame */}
           <div className="relative aspect-video bg-black/60 flex flex-col justify-between p-4">
             {mediaUrl && (
@@ -434,9 +435,9 @@ function RecordedLectureContent({
               />
             )}
             <div className="relative flex items-center justify-between">
-              <span className="px-2.5 py-1 rounded-md bg-black/60 text-xs font-mono font-bold text-white flex items-center gap-1.5 border border-white/10">
-                <span className="w-2 h-2 rounded-full bg-[#DC2626] animate-pulse" />
-                REC • {lecture.classroom?.subject_code ?? (lecture.source === "live" ? "LIVE" : "UPLOAD")}
+              <span className="cc-stamp text-chalk-pink bg-board/70">
+                <span className="w-1.5 h-1.5 rounded-full bg-chalk-pink" />
+                Rec · {lecture.classroom?.subject_code ?? (lecture.source === "live" ? "LIVE" : "UPLOAD")}
               </span>
 
               <div className="flex items-center gap-2">
@@ -460,22 +461,22 @@ function RecordedLectureContent({
             <button
               onClick={() => setIsPlayingReal(!isPlaying)}
               disabled={totalTimeSec === 0}
-              className={`relative w-14 h-14 rounded-full bg-[#1E3A8A] hover:bg-[#2563EB] text-white flex items-center justify-center mx-auto shadow-lg active:scale-95 transition disabled:opacity-50 ${isPlaying && isVideo ? "opacity-0 hover:opacity-100" : ""}`}
+              className={`relative w-14 h-14 rounded-full bg-chalk text-board hover:bg-white flex items-center justify-center mx-auto shadow-lg active:scale-95 transition disabled:opacity-50 ${isPlaying && isVideo ? "opacity-0 hover:opacity-100" : ""}`}
             >
               {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 ml-0.5" />}
             </button>
 
             {/* Bilingual Synchronized Subtitle Box matching Stitch */}
             {showCC ? (
-              <div className="relative bg-black/80 backdrop-blur-md rounded-2xl p-3 border border-white/15">
-                <span className="px-2 py-0.5 rounded bg-[#1E3A8A] text-[10px] font-bold text-[#90A8FF] mb-1 inline-block">
-                  BILINGUAL SYNC • {LANGUAGES.find((l) => l.code === selectedCaptionLang)?.name} + Original
+              <div className="relative bg-board/90 rounded-[10px] p-3 border border-board-line">
+                <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-chalk-blue mb-1 inline-block">
+                  {LANGUAGES.find((l) => l.code === selectedCaptionLang)?.name} + Original
                 </span>
-                <p className={`${subtitleSize} font-semibold text-white leading-snug`}>
+                <p lang={selectedCaptionLang} className={`${subtitleSize} font-medium text-chalk leading-snug`}>
                   &ldquo;{currentCue?.text ?? (segments.length ? "Press play to start subtitles." : ready ? "No speech found." : "Subtitles appear once processing finishes.")}&rdquo;
                 </p>
                 {currentCue && currentCue.original !== currentCue.text && (
-                  <p className="text-xs font-medium text-[#34D399] mt-0.5">
+                  <p className="text-xs font-heading italic text-chalk-dim mt-1">
                     &ldquo;{currentCue.original}&rdquo;
                   </p>
                 )}
@@ -486,36 +487,36 @@ function RecordedLectureContent({
           </div>
 
           {/* Timeline and Scrubber with Confusion Hotspots matching Stitch */}
-          <div className="p-4 space-y-3 bg-white/5 border-t border-white/10">
+          <div className="p-4 space-y-3 border-t border-board-line">
             <div>
               <div
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect();
                   seek(((e.clientX - r.left) / r.width) * totalTimeSec);
                 }}
-                className="relative w-full bg-gray-700 h-2 rounded-full overflow-hidden mb-1.5 cursor-pointer"
+                className="relative w-full bg-board-2 h-2 rounded-full overflow-hidden mb-1.5 cursor-pointer"
               >
                 {/* Progress bar */}
-                <div className="bg-[#3B82F6] h-full" style={{ width: `${totalTimeSec ? Math.min(100, (currentTimeSec / totalTimeSec) * 100) : 0}%` }} />
+                <div className="bg-chalk-blue h-full" style={{ width: `${totalTimeSec ? Math.min(100, (currentTimeSec / totalTimeSec) * 100) : 0}%` }} />
                 {/* Yellow Confusion Hotspots Markers */}
                 {totalTimeSec > 0 &&
                   hotspots.map((h) => (
                     <div
                       key={h.seq}
                       title={`${h.count} lost at ${mmss(h.offset_s)}`}
-                      className="absolute top-0 bottom-0 w-1.5 bg-[#F59E0B]"
+                      className="absolute top-0 bottom-0 w-1.5 bg-haldi"
                       style={{ left: `${Math.min(99, (h.offset_s / totalTimeSec) * 100)}%` }}
                     />
                   ))}
               </div>
 
-              <div className="flex items-center justify-between text-xs text-gray-300 font-mono font-semibold">
+              <div className="flex items-center justify-between text-xs text-chalk-dim font-mono font-semibold">
                 <span>
                   {formatTime(currentTimeSec)} / {formatTime(totalTimeSec)}
                 </span>
-                <span className="flex items-center gap-1 text-[#F59E0B] font-sans font-bold">
-                  <span className="w-2 h-2 bg-[#F59E0B] rounded-xs" />
-                  Class Confusion Hotspots ({hotspots.length})
+                <span className="flex items-center gap-1 text-chalk-yellow font-sans font-semibold">
+                  <span className="w-2 h-2 bg-haldi rounded-xs" />
+                  &ldquo;I&apos;m lost&rdquo; moments ({hotspots.length})
                 </span>
               </div>
             </div>
@@ -541,7 +542,7 @@ function RecordedLectureContent({
                 >
                   +10s
                 </button>
-                <Volume2 className="w-4 h-4 text-gray-400" />
+                <Volume2 className="w-4 h-4 text-chalk-dim" />
               </div>
 
               {/* Language Pill Selector inside Player */}
@@ -552,8 +553,8 @@ function RecordedLectureContent({
                     onClick={() => setSelectedCaptionLang(l)}
                     className={`px-2 py-0.5 rounded-lg text-xs font-bold transition ${
                       selectedCaptionLang === l
-                        ? "bg-[#1E3A8A] text-white"
-                        : "text-gray-300 hover:bg-white/10"
+                        ? "bg-chalk text-board"
+                        : "text-chalk-dim hover:bg-white/10"
                     }`}
                   >
                     {l === "en" ? "English" : l === "hi" ? "हिंदी" : l === "ta" ? "தமிழ்" : l === "te" ? "తెలుగు" : "বাংলা"}
@@ -565,37 +566,37 @@ function RecordedLectureContent({
             {/* Text Size & Speed Controls matching Stitch */}
             <div className="flex items-center justify-between pt-2 border-t border-white/10 text-xs">
               <div className="flex items-center gap-1.5 bg-white/10 px-2.5 py-1 rounded-xl">
-                <span className="text-gray-400 font-bold">TT</span>
+                <span className="text-chalk-dim font-bold">TT</span>
                 <button
                   onClick={() => setTextSize("sm")}
-                  className={`px-1.5 rounded ${textSize === "sm" ? "bg-white/20 text-white font-bold" : "text-gray-400"}`}
+                  className={`px-1.5 rounded ${textSize === "sm" ? "bg-white/20 text-white font-bold" : "text-chalk-dim"}`}
                 >
                   A
                 </button>
                 <button
                   onClick={() => setTextSize("md")}
-                  className={`px-1.5 rounded ${textSize === "md" ? "bg-[#1E3A8A] text-white font-bold underline" : "text-gray-400"}`}
+                  className={`px-1.5 rounded ${textSize === "md" ? "bg-white/20 text-white font-bold" : "text-chalk-dim"}`}
                 >
                   A+
                 </button>
                 <button
                   onClick={() => setTextSize("lg")}
-                  className={`px-1.5 rounded ${textSize === "lg" ? "bg-white/20 text-white font-bold" : "text-gray-400"}`}
+                  className={`px-1.5 rounded ${textSize === "lg" ? "bg-white/20 text-white font-bold" : "text-chalk-dim"}`}
                 >
                   A++
                 </button>
               </div>
 
               <div className="flex items-center gap-1.5 bg-white/10 px-2.5 py-1 rounded-xl">
-                <span className="text-gray-400 font-semibold">Speed:</span>
+                <span className="text-chalk-dim font-semibold">Speed:</span>
                 {["1.0x", "1.25x", "1.5x"].map((spd) => (
                   <button
                     key={spd}
                     onClick={() => setPlaybackSpeed(spd)}
                     className={`px-1.5 rounded ${
                       playbackSpeed === spd
-                        ? "bg-[#1E3A8A] text-white font-bold underline"
-                        : "text-gray-300 hover:text-white"
+                        ? "bg-white/20 text-white font-bold"
+                        : "text-chalk-dim hover:text-white"
                     }`}
                   >
                     {spd}
@@ -607,26 +608,21 @@ function RecordedLectureContent({
         </section>
 
         {/* 3. Pace & Comprehension Telemetry Card matching Stitch */}
-        <section className="bg-white rounded-3xl border border-[#E2E8F0] p-5 shadow-xs">
+        <section className="cc-card p-5">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-[#FEF3C7] flex items-center justify-center text-[#D97706]">
-                <HelpCircle className="w-4 h-4" />
-              </div>
-              <h3 className="text-base font-bold text-[#0F172A] font-heading">
-                Pace &amp; Comprehension Telemetry
-              </h3>
+              <h3 className="text-xl font-medium">How the class followed</h3>
             </div>
-            <span className="px-3 py-1 rounded-full bg-[#ECFDF5] text-[#065F46] text-xs font-bold border border-[#A7F3D0]">
+            <span className="text-xs font-semibold text-patta text-right">
               {paceText}
             </span>
           </div>
 
-          <p className="text-xs text-[#475569] mb-4">
+          <p className="text-sm text-ink-2 mb-4">
             {topHotspot ? (
               <>
                 {topHotspot.count} &ldquo;I&apos;m lost&rdquo; tap{topHotspot.count === 1 ? "" : "s"} during the live class at{" "}
-                <button onClick={() => seek(topHotspot.offset_s)} className="font-bold text-[#1E3A8A] underline">
+                <button onClick={() => seek(topHotspot.offset_s)} className="font-bold text-neel underline">
                   {mmss(topHotspot.offset_s)}
                 </button>
               </>
@@ -637,7 +633,7 @@ function RecordedLectureContent({
 
           <button
             onClick={markLost}
-            className="w-full h-12 rounded-2xl bg-[#FEF3C7] border-2 border-[#D97706] text-[#92400E] font-bold text-xs flex items-center justify-center gap-2 hover:bg-[#FDE68A] transition active:scale-95"
+            className="cc-btn cc-btn-haldi w-full h-12 text-sm"
           >
             <HelpCircle className="w-4 h-4" />
             <span>Bookmark this moment to revise</span>
@@ -645,29 +641,24 @@ function RecordedLectureContent({
         </section>
 
         {/* 4. Listen to Notes (Audio Narration) matching Stitch */}
-        <section className="bg-white rounded-3xl border border-[#E2E8F0] p-5 shadow-xs flex items-center justify-between gap-3">
+        <section className="cc-card p-5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#EFF6FF] flex items-center justify-center text-[#1E3A8A]">
-              <Headphones className="w-5 h-5" />
-            </div>
+            <Headphones className="w-5 h-5 text-neel flex-shrink-0" />
             <div>
-              <h3 className="text-sm font-bold text-[#0F172A] font-heading">
-                Listen to Notes (Audio Narration)
-              </h3>
-              <p className="text-xs text-[#64748B]">
-                Device AI Voice • {LANGUAGES.find((l) => l.code === selectedCaptionLang)?.name}
+              <h3 className="text-lg font-medium leading-tight">Listen to the notes</h3>
+              <p className="text-xs text-ink-3">
+                Read aloud by your device · {LANGUAGES.find((l) => l.code === selectedCaptionLang)?.name}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded-lg bg-[#F1F5F9] text-xs font-semibold text-[#0F172A]">
-              1.2x Speed
-            </span>
+            <span className="font-mono text-xs text-ink-3">1.2×</span>
             <button
               onClick={playAudioNarration}
-              className={`w-10 h-10 rounded-full flex items-center justify-center text-white transition active:scale-95 shadow-xs ${
-                isNarrating ? "bg-[#DC2626]" : "bg-[#1E3A8A] hover:bg-[#00236F]"
+              aria-label={isNarrating ? "Pause narration" : "Play narration"}
+              className={`w-11 h-11 rounded-full flex items-center justify-center text-white border-[1.5px] border-ink shadow-[2px_2px_0_var(--color-ink)] transition active:translate-x-0.5 active:translate-y-0.5 active:shadow-none ${
+                isNarrating ? "bg-sindoor" : "bg-neel hover:bg-neel-deep"
               }`}
             >
               {isNarrating ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
@@ -677,39 +668,30 @@ function RecordedLectureContent({
 
         {/* 5. Multilingual Tab Navigation matching Stitch */}
         <section className="space-y-3">
-          <div className="grid grid-cols-4 gap-1.5 p-1 rounded-2xl bg-[#F1F5F9] border border-[#E2E8F0]">
+          <div className="grid grid-cols-4 border-b border-rule" role="tablist">
             <button
               onClick={() => setActiveTab("transcript")}
-              className={`py-2 rounded-xl text-xs font-bold transition ${
-                activeTab === "transcript" ? "bg-white text-[#0F172A] shadow-xs" : "text-[#64748B]"
-              }`}
+              className={`${tabCls} ${activeTab === "transcript" ? tabOn : tabOff}`}
             >
               Transcript
             </button>
             <button
               onClick={() => setActiveTab("notes")}
-              className={`py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition ${
-                activeTab === "notes" ? "bg-[#1E3A8A] text-white shadow-xs" : "text-[#64748B]"
-              }`}
+              className={`${tabCls} ${activeTab === "notes" ? tabOn : tabOff}`}
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>AI Notes</span>
+              Notes
             </button>
             <button
               onClick={() => setActiveTab("quiz")}
-              className={`py-2 rounded-xl text-xs font-bold transition ${
-                activeTab === "quiz" ? "bg-white text-[#0F172A] shadow-xs" : "text-[#64748B]"
-              }`}
+              className={`${tabCls} ${activeTab === "quiz" ? tabOn : tabOff}`}
             >
-              AI Quiz ({conceptNotes?.quiz?.length ?? 0})
+              Quiz <span className="font-mono text-xs text-ink-3">{conceptNotes?.quiz?.length ?? 0}</span>
             </button>
             <button
               onClick={() => setActiveTab("ask")}
-              className={`py-2 rounded-xl text-xs font-bold transition ${
-                activeTab === "ask" ? "bg-white text-[#0F172A] shadow-xs" : "text-[#64748B]"
-              }`}
+              className={`${tabCls} ${activeTab === "ask" ? tabOn : tabOff}`}
             >
-              Ask AI
+              Ask
             </button>
           </div>
 
@@ -717,26 +699,22 @@ function RecordedLectureContent({
           {activeTab === "notes" && (
             <div className="space-y-4">
               {!notesEn && (
-                <div className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs text-sm text-[#475569]">
+                <div className="cc-card p-6 text-sm text-ink-2">
                   {ready ? (notesLoading ? "Generating AI notes in your language..." : "Notes could not be loaded. Try again in a moment.") : "AI notes are written as soon as the transcript is ready."}
                 </div>
               )}
 
               {/* Lecture Summary High-Yield */}
               {notesEn && (
-                <div className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs space-y-3">
+                <div className="cc-card cc-notebook py-6 pr-6 pl-14 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-base font-bold text-[#0F172A] font-heading">
-                      1. Lecture Summary (High-Yield)
-                    </h3>
-                    <span className="px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1E40AF] text-xs font-bold">
-                      Bilingual
-                    </span>
+                    <h3 className="text-2xl font-normal">Summary</h3>
+                    <span className="cc-eyebrow">Bilingual</span>
                   </div>
 
-                  <div className="space-y-3 text-sm leading-relaxed text-[#334155]">
+                  <div className="space-y-4 text-[15px] leading-[1.75rem] text-ink-2">
                     <div>
-                      <strong className="text-[#0F172A]">English:</strong>
+                      <strong className="cc-eyebrow">English</strong>
                       <ul className="list-disc pl-5 mt-1 space-y-1">
                         {notesEn.summary.map((b, i) => (
                           <li key={i}>{b}</li>
@@ -745,11 +723,11 @@ function RecordedLectureContent({
                     </div>
 
                     {notes && (
-                      <div className="p-4 rounded-2xl bg-[#EFF6FF] border-l-4 border-[#1E3A8A] text-[#1E3A8A]">
-                        <p className="font-semibold text-xs mb-1">
-                          {LANGUAGES.find((l) => l.code === (selectedCaptionLang === "en" ? "hi" : selectedCaptionLang))?.native} सारांश / Summary:
+                      <div lang={selectedCaptionLang === "en" ? "hi" : selectedCaptionLang} className="text-ink">
+                        <p className="text-sindoor text-base mb-1">
+                          {LANGUAGES.find((l) => l.code === (selectedCaptionLang === "en" ? "hi" : selectedCaptionLang))?.native}
                         </p>
-                        <ul className="list-disc pl-5 space-y-1 text-sm font-medium">
+                        <ul className="list-disc pl-5 space-y-1 text-[15px]">
                           {notes.summary.map((b, i) => (
                             <li key={i}>{b}</li>
                           ))}
@@ -762,30 +740,20 @@ function RecordedLectureContent({
 
               {/* CONCEPT cards matching Stitch */}
               {conceptNotes?.key_terms.map((t, i) => (
-                <div key={t.term} className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`px-2.5 py-0.5 rounded-md text-xs font-bold uppercase ${
-                        i % 2 === 0 ? "bg-[#ECFDF5] text-[#065F46]" : "bg-[#EFF6FF] text-[#1E40AF]"
-                      }`}
-                    >
-                      CONCEPT {String(i + 1).padStart(2, "0")}
-                    </span>
-                  </div>
+                <div key={t.term} className="cc-card p-6 space-y-1.5">
+                  <span className="font-mono text-xs text-sindoor">{String(i + 1).padStart(2, "0")}</span>
 
-                  <h4 className="text-base font-bold text-[#0F172A] font-heading">
-                    {t.term}
-                  </h4>
+                  <h4 className="text-2xl font-normal leading-tight">{t.term}</h4>
 
-                  <p className="text-xs text-[#475569]">
+                  <p className="text-[15px] text-ink-2 leading-relaxed">
                     {t.meaning}
                   </p>
 
-                  <div className="pt-3 border-t border-[#E2E8F0] flex items-center justify-between text-xs">
-                    <span className="font-mono font-semibold text-[#64748B]">Key Term</span>
+                  <div className="pt-3 border-t border-rule flex items-center justify-between text-xs">
+                    <span className="cc-eyebrow">Key term</span>
                     <button
                       onClick={() => handleAskAI(`Explain "${t.term}" from this lecture with an example`)}
-                      className="font-bold text-[#1E3A8A] flex items-center gap-1 hover:underline"
+                      className="font-semibold text-neel flex items-center gap-1 hover:underline"
                     >
                       <span>Ask AI</span>
                       <ChevronRight className="w-3.5 h-3.5" />
@@ -796,11 +764,11 @@ function RecordedLectureContent({
 
               {/* Timeline */}
               {conceptNotes && conceptNotes.timeline.length > 0 && (
-                <div className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs space-y-2">
-                  <h3 className="text-base font-bold text-[#0F172A] font-heading">Lecture Timeline</h3>
+                <div className="cc-card p-6 space-y-2">
+                  <h3 className="text-xl font-medium mb-1">Timeline</h3>
                   {conceptNotes.timeline.map((t, i) => (
-                    <button key={i} onClick={() => seek(t.start_s)} className="block text-left text-xs text-[#334155] hover:underline">
-                      <span className="font-mono font-bold text-[#1E3A8A]">[{mmss(t.start_s)}]</span> {t.topic}
+                    <button key={i} onClick={() => seek(t.start_s)} className="flex gap-3 text-left text-sm text-ink-2 hover:text-ink py-1">
+                      <span className="font-mono text-neel flex-shrink-0">{mmss(t.start_s)}</span> <span>{t.topic}</span>
                     </button>
                   ))}
                 </div>
@@ -810,19 +778,17 @@ function RecordedLectureContent({
 
           {/* TAB 2: TRANSCRIPT */}
           {activeTab === "transcript" && (
-            <div className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs space-y-3">
-              <h3 className="text-base font-bold text-[#0F172A] font-heading mb-2">
-                Complete Lecture Transcript
-              </h3>
-              <div className="space-y-3 text-xs leading-relaxed text-[#334155] max-h-[480px] overflow-y-auto">
-                {cues.length === 0 && <p className="text-[#64748B]">The transcript appears once processing finishes.</p>}
+            <div className="cc-card p-6 space-y-3">
+              <h3 className="text-xl font-medium mb-2">Transcript</h3>
+              <div className="space-y-2 text-[15px] leading-relaxed text-ink-2 max-h-[480px] overflow-y-auto">
+                {cues.length === 0 && <p className="text-ink-3">The transcript appears once processing finishes.</p>}
                 {cues.map((c) => (
                   <p
                     key={c.idx}
                     onClick={() => seek(c.start_s)}
-                    className={`cursor-pointer rounded-lg px-1 ${currentCue?.idx === c.idx ? "bg-[#EFF6FF]" : "hover:bg-[#F8FAFC]"}`}
+                    className={`cursor-pointer rounded-md px-2 py-1 flex gap-3 ${currentCue?.idx === c.idx ? "bg-haldi-wash text-ink" : "hover:bg-paper"}`}
                   >
-                    <span className="font-mono font-bold text-[#1E3A8A]">[{mmss(c.start_s)}]</span> {c.text}
+                    <span className="font-mono text-xs text-neel pt-1 flex-shrink-0">{mmss(c.start_s)}</span> <span>{c.text}</span>
                   </p>
                 ))}
               </div>
@@ -832,46 +798,46 @@ function RecordedLectureContent({
           {/* TAB 3: AI QUIZ + exam practice */}
           {activeTab === "quiz" && (
             <div className="space-y-4">
-              <div className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs space-y-4">
+              <div className="cc-card p-6 space-y-4">
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-base font-bold text-[#0F172A] font-heading">Quick quiz ({conceptNotes?.quiz.length ?? 0} questions)</h3>
+                  <h3 className="text-lg font-medium">Quick quiz ({conceptNotes?.quiz.length ?? 0} questions)</h3>
                   {conceptNotes && Object.keys(answers).length > 0 && (
-                    <span className="text-xs font-bold text-[#1E3A8A]">
+                    <span className="text-xs font-bold text-neel">
                       Score: {conceptNotes.quiz.filter((q, qi) => answers[qi] === q.answer_index).length} / {conceptNotes.quiz.length}
                     </span>
                   )}
                 </div>
                 {quizSaved && (
-                  <p className="text-xs font-semibold text-[#065F46] bg-[#ECFDF5] border border-[#A7F3D0] rounded-xl px-3 py-2">
+                  <p className="text-xs font-semibold text-patta-deep bg-patta-wash border border-patta-line rounded-xl px-3 py-2">
                     {quizJustSaved ? "Saved to your account. " : ""}Your best: {quizSaved.best}/{quizSaved.total} ({quizSaved.attempts} attempt
                     {quizSaved.attempts === 1 ? "" : "s"})
                   </p>
                 )}
                 {answeredAll && quizAccount === false && role === "student" && (
-                  <p className="text-xs text-[#475569]">
-                    <Link href={`/student/login?next=${encodeURIComponent(`/student/lectures/${id}?tab=quiz`)}`} className="font-bold text-[#1E3A8A] underline">
+                  <p className="text-xs text-ink-2">
+                    <Link href={`/student/login?next=${encodeURIComponent(`/student/lectures/${id}?tab=quiz`)}`} className="font-bold text-neel underline">
                       Sign in
                     </Link>{" "}
                     to save your quiz scores.
                   </p>
                 )}
-                {!conceptNotes && <p className="text-xs text-[#64748B]">{notesLoading ? "Writing the quiz..." : "The quiz is generated with the AI notes."}</p>}
+                {!conceptNotes && <p className="text-xs text-ink-3">{notesLoading ? "Writing the quiz..." : "The quiz is generated with the AI notes."}</p>}
                 {conceptNotes?.quiz.map((q, qi) => {
                   const picked = answers[qi];
                   return (
-                    <div key={qi} className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-3">
-                      <p className="text-sm font-bold text-[#0F172A]">
-                        Q{qi + 1}. {q.question}
+                    <div key={qi} className="p-4 rounded-xl bg-paper border border-rule space-y-3">
+                      <p className="text-[15px] font-semibold text-ink">
+                        <span className="font-heading italic text-sindoor mr-1">{qi + 1}.</span> {q.question}
                       </p>
-                      <div className="space-y-1.5 text-xs">
+                      <div className="space-y-1.5 text-sm">
                         {q.options.map((opt, i) => {
-                          const state = picked === undefined ? "" : i === q.answer_index ? "border-[#059669] bg-[#ECFDF5]" : i === picked ? "border-[#DC2626] bg-[#FEF2F2]" : "opacity-70";
+                          const state = picked === undefined ? "" : i === q.answer_index ? "border-patta bg-patta-wash" : i === picked ? "border-sindoor bg-sindoor-wash" : "opacity-70";
                           return (
                             <button
                               key={i}
                               disabled={picked !== undefined}
                               onClick={() => setAnswers((a) => ({ ...a, [qi]: i }))}
-                              className={`w-full text-left p-2.5 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#EFF6FF] font-medium transition ${state}`}
+                              className={`w-full text-left px-3 py-2.5 rounded-[10px] border border-rule-strong bg-card hover:border-ink transition ${state}`}
                             >
                               {String.fromCharCode(65 + i)}. {opt}
                             </button>
@@ -879,7 +845,7 @@ function RecordedLectureContent({
                         })}
                       </div>
                       {picked !== undefined && (
-                        <p className={`text-xs p-2.5 rounded-xl ${picked === q.answer_index ? "bg-[#ECFDF5] text-[#065F46]" : "bg-[#FEF2F2] text-[#991B1B]"}`}>
+                        <p className={`text-sm p-3 rounded-[10px] ${picked === q.answer_index ? "bg-patta-wash text-patta-deep" : "bg-sindoor-wash text-sindoor-deep"}`}>
                           <span className="font-bold">{picked === q.answer_index ? "Correct. " : `Not quite: the answer is ${String.fromCharCode(65 + q.answer_index)}. `}</span>
                           {q.explanation}
                         </p>
@@ -893,7 +859,7 @@ function RecordedLectureContent({
                       setAnswers({});
                       setQuizJustSaved(false);
                     }}
-                    className="text-xs font-bold text-[#1E3A8A] hover:underline"
+                    className="text-xs font-bold text-neel hover:underline"
                   >
                     Try the quiz again
                   </button>
@@ -901,20 +867,20 @@ function RecordedLectureContent({
               </div>
 
               {!!conceptNotes?.practice_questions?.length && (
-                <div className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs space-y-3">
+                <div className="cc-card p-6 space-y-3">
                   <div>
-                    <h3 className="text-base font-bold text-[#0F172A] font-heading">Exam practice</h3>
-                    <p className="text-xs text-[#64748B]">Write your answer first, then compare it with the model answer.</p>
+                    <h3 className="text-lg font-medium">Exam practice</h3>
+                    <p className="text-xs text-ink-3">Write your answer first, then compare it with the model answer.</p>
                   </div>
                   {conceptNotes.practice_questions.map((q, qi) => (
-                    <div key={qi} className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
-                      <p className="text-sm font-bold text-[#0F172A]">
+                    <div key={qi} className="p-4 rounded-xl bg-paper border border-rule space-y-2">
+                      <p className="text-sm font-bold text-ink">
                         {qi + 1}. {q.question}
                       </p>
                       {revealed[qi] ? (
-                        <p className="text-xs text-[#334155] leading-relaxed p-3 rounded-xl bg-white border border-[#E2E8F0]">{q.answer}</p>
+                        <p className="text-xs text-ink-2 leading-relaxed p-3 rounded-xl bg-card border border-rule">{q.answer}</p>
                       ) : (
-                        <button onClick={() => setRevealed((r) => ({ ...r, [qi]: true }))} className="text-xs font-bold text-[#1E3A8A] hover:underline">
+                        <button onClick={() => setRevealed((r) => ({ ...r, [qi]: true }))} className="text-xs font-bold text-neel hover:underline">
                           Show model answer
                         </button>
                       )}
@@ -927,22 +893,20 @@ function RecordedLectureContent({
 
           {/* TAB 4: ASK AI CHAT */}
           {activeTab === "ask" && (
-            <div className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs space-y-4">
-              <h3 className="text-base font-bold text-[#0F172A] font-heading">
-                Lecture AI Assistant Q&amp;A
-              </h3>
+            <div className="cc-card p-6 space-y-4">
+              <h3 className="text-xl font-medium">Ask the lecture</h3>
               <div className="space-y-3 max-h-80 overflow-y-auto">
                 {aiChat.length === 0 && (
-                  <p className="text-xs text-[#64748B]">
+                  <p className="text-xs text-ink-3">
                     Ask anything about this lecture in any language. Answers come only from what was said in class, with timestamps.
                   </p>
                 )}
                 {aiChat.map((chat, i) => (
                   <div key={i} className="space-y-2">
-                    <div className="bg-[#EFF6FF] text-[#1E40AF] p-3 rounded-2xl text-xs font-bold text-right ml-12">
+                    <div className="bg-neel text-white px-3.5 py-2.5 rounded-[12px] rounded-br-sm text-sm w-fit max-w-[85%] ms-auto">
                       {chat.q}
                     </div>
-                    <div className="bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] p-3.5 rounded-2xl text-xs leading-relaxed mr-8">
+                    <div className="bg-paper border border-rule text-ink p-3.5 rounded-[12px] rounded-bl-sm text-sm leading-relaxed mr-8">
                       {chat.a}
                       {chat.citations && chat.citations.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 mt-2">
@@ -951,42 +915,41 @@ function RecordedLectureContent({
                               key={ci}
                               onClick={() => seek(c.start_s)}
                               title={c.quote}
-                              className="px-2 py-0.5 rounded-md bg-[#EFF6FF] text-[#1E40AF] font-mono font-bold text-[11px] hover:bg-[#DBEAFE]"
+                              className="px-2 py-0.5 rounded-md border border-neel-line text-neel font-mono text-[11px] hover:bg-neel-wash"
                             >
                               ▶ {mmss(c.start_s)}
                             </button>
                           ))}
                         </div>
                       )}
-                      {chat.via && <p className="mt-2 text-[10px] text-[#64748B]">{chat.via}</p>}
+                      {chat.via && <p className="mt-2 text-[10px] text-ink-3">{chat.via}</p>}
                     </div>
                   </div>
                 ))}
-                {isAsking && <p className="text-xs text-[#64748B]">Searching the lecture...</p>}
+                {isAsking && <p className="text-xs text-ink-3">Searching the lecture...</p>}
               </div>
             </div>
           )}
         </section>
 
         {/* 6. Sticky Bottom "Ask AI" Prompt Bar matching Stitch */}
-        <section className="bg-white rounded-3xl border-2 border-[#1E3A8A]/30 p-4 shadow-lg space-y-2.5">
+        <section className="cc-card p-4 space-y-2.5 !border-ink/30">
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar text-xs">
-            <span className="flex items-center gap-1 font-bold text-[#1E3A8A] flex-shrink-0">
-              <Sparkles className="w-3.5 h-3.5" />
-              Prompts:
+            <span className="cc-eyebrow flex-shrink-0">
+              Try
             </span>
             {(notesEn?.key_terms.slice(0, 2) ?? []).flatMap((t, k) => [
               <button
                 key={`w${k}`}
                 onClick={() => handleAskAI(`What is ${t.term}?`)}
-                className="px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1E40AF] font-medium whitespace-nowrap hover:bg-[#DBEAFE] transition"
+                className="px-3 py-1 rounded-full border border-rule-strong text-ink-2 whitespace-nowrap hover:border-ink hover:text-ink transition"
               >
                 &ldquo;What is {t.term}?&rdquo;
               </button>,
               <button
                 key={`h${k}`}
                 onClick={() => handleAskAI(`Explain ${t.term} in Hindi`)}
-                className="px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1E40AF] font-medium whitespace-nowrap hover:bg-[#DBEAFE] transition"
+                className="px-3 py-1 rounded-full border border-rule-strong text-ink-2 whitespace-nowrap hover:border-ink hover:text-ink transition"
               >
                 &ldquo;Explain {t.term} in Hindi&rdquo;
               </button>,
@@ -994,7 +957,7 @@ function RecordedLectureContent({
             {!notesEn && (
               <button
                 onClick={() => handleAskAI("Summarise this lecture in 3 points")}
-                className="px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1E40AF] font-medium whitespace-nowrap hover:bg-[#DBEAFE] transition"
+                className="px-3 py-1 rounded-full border border-rule-strong text-ink-2 whitespace-nowrap hover:border-ink hover:text-ink transition"
               >
                 &ldquo;Summarise this lecture in 3 points&rdquo;
               </button>
@@ -1002,15 +965,15 @@ function RecordedLectureContent({
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex-1 h-12 px-3.5 rounded-2xl border border-[#CBD5E1] bg-white flex items-center gap-2 focus-within:border-[#1E3A8A] focus-within:ring-2 focus-within:ring-[#1E3A8A]/20">
-              <Bot className="w-4 h-4 text-[#64748B]" />
+            <div className="flex-1 h-12 px-3.5 rounded-[10px] border-[1.5px] border-rule-strong bg-card flex items-center gap-2 focus-within:border-neel focus-within:ring-2 focus-within:ring-neel-wash">
+              <Bot className="w-4 h-4 text-ink-3" />
               <input
                 type="text"
                 value={aiQuestion}
                 onChange={(e) => setAiQuestion(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleAskAI()}
-                placeholder="Ask anything from lecture..."
-                className="w-full text-xs font-medium text-[#0F172A] outline-none placeholder:text-[#94A3B8]"
+                placeholder="Ask anything from this lecture..."
+                className="w-full text-sm text-ink bg-transparent outline-none placeholder:text-ink-4"
               />
               <button
                 onClick={() => {
@@ -1024,7 +987,7 @@ function RecordedLectureContent({
                     }
                   }
                 }}
-                className="text-[#64748B] hover:text-[#1E3A8A]"
+                className="text-ink-3 hover:text-neel"
               >
                 <Mic className="w-4 h-4" />
               </button>
@@ -1033,9 +996,9 @@ function RecordedLectureContent({
             <button
               onClick={() => handleAskAI()}
               disabled={isAsking || !aiQuestion.trim() || !ready}
-              className="h-12 px-4 rounded-2xl bg-[#1E3A8A] hover:bg-[#00236F] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm disabled:opacity-50 transition active:scale-95"
+              className="cc-btn cc-btn-primary h-12 px-4 text-xs flex items-center gap-1.5"
             >
-              <span>{isAsking ? "..." : "Ask AI"}</span>
+              <span>{isAsking ? "..." : "Ask"}</span>
               <Send className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -1053,7 +1016,7 @@ export default function RecordedLecturePage({
   params: Promise<{ id: string }>;
 }) {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-sm text-[#475569]">Loading lecture hub...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-sm text-ink-2">Loading lecture hub...</div>}>
       <RecordedLectureContent paramsPromise={params} />
     </Suspense>
   );

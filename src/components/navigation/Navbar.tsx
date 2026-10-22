@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import { Brand } from "@/components/brand/Brand";
 import { usePathname } from "next/navigation";
-import { Volume2, ZoomIn, Maximize2, Languages, PhoneOff, Menu, GraduationCap } from "lucide-react";
+import { Volume2, Maximize2, Languages, PhoneOff } from "lucide-react";
 import { useState } from "react";
 
 interface NavbarProps {
@@ -41,27 +41,15 @@ export function Navbar({
     }
   };
 
+  const iconBtn =
+    "w-9 h-9 flex items-center justify-center rounded-[9px] border border-rule-strong bg-card text-ink-2 hover:bg-paper-2 hover:text-ink active:translate-y-px transition";
+
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-[#E2E8F0] px-4 py-3">
-      <div className="max-w-5xl mx-auto flex items-center justify-between gap-2">
+    <header className="sticky top-0 z-40 bg-paper/95 backdrop-blur-sm border-b border-rule">
+      <div className="max-w-5xl mx-auto flex items-center justify-between gap-2 px-4 py-3">
         {/* Left branding */}
-        <div className="flex items-center gap-3">
-          <Link href={homeHref} className="flex items-center gap-2.5 text-[#0F172A] hover:opacity-90">
-            <div className="w-9 h-9 rounded-xl bg-[#1E3A8A] flex items-center justify-center text-white shadow-sm">
-              <GraduationCap className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="font-extrabold text-lg tracking-tight text-[#0F172A] block leading-tight font-heading">
-                {title}
-              </span>
-              {subtitle && (
-                <span className="text-[11px] font-medium text-[#475569] block leading-none">
-                  {subtitle}
-                </span>
-              )}
-            </div>
-          </Link>
-        </div>
+        <Brand href={homeHref} subtitle={subtitle} size={36} className="min-w-0" />
+        {title !== "ClassCaption" && <span className="sr-only">{title}</span>}
 
         {/* Right Accessibility & Action Controls */}
         <div className="flex items-center gap-2">
@@ -74,7 +62,7 @@ export function Navbar({
               }
             }}
             title="Test Audio Output"
-            className="w-9 h-9 flex items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#475569] hover:bg-[#F1F5F9] active:scale-95 transition"
+            className={iconBtn}
             aria-label="Audio Test"
           >
             <Volume2 className="w-4 h-4" />
@@ -84,17 +72,18 @@ export function Navbar({
           <button
             onClick={toggleFontSize}
             title="Enlarge Caption Text Size"
-            className="h-9 px-2.5 flex items-center gap-1 rounded-lg border border-[#E2E8F0] bg-white text-[#0F172A] font-semibold text-xs hover:bg-[#F1F5F9] active:scale-95 transition"
+            className={`${iconBtn} !w-auto px-2.5 font-heading text-sm font-semibold text-ink`}
             aria-label="Toggle Font Size"
           >
-            <span className="font-bold">A+</span>
+            <span>A</span>
+            <span className="text-[10px] align-super">+</span>
           </button>
 
           {/* Fullscreen */}
           <button
             onClick={toggleFullscreen}
             title="Toggle Fullscreen"
-            className="w-9 h-9 hidden sm:flex items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#475569] hover:bg-[#F1F5F9] active:scale-95 transition"
+            className={`${iconBtn} hidden sm:flex`}
             aria-label="Fullscreen"
           >
             <Maximize2 className="w-4 h-4" />
@@ -102,10 +91,7 @@ export function Navbar({
 
           {/* Language Switch Button */}
           {onToggleLang && (
-            <button
-              onClick={onToggleLang}
-              className="h-9 px-3 flex items-center gap-1.5 rounded-lg bg-[#1E3A8A] text-white font-medium text-xs shadow-sm hover:bg-[#00236F] active:scale-95 transition"
-            >
+            <button onClick={onToggleLang} className="cc-btn cc-btn-primary h-9 px-3 text-xs">
               <Languages className="w-3.5 h-3.5" />
               <span>{selectedLang}</span>
             </button>
@@ -113,10 +99,7 @@ export function Navbar({
 
           {/* End Lecture Button (Teacher Mode) */}
           {showEndLecture && onEndLecture && (
-            <button
-              onClick={onEndLecture}
-              className="h-9 px-3.5 flex items-center gap-1.5 rounded-lg border border-[#DC2626] text-[#DC2626] bg-white hover:bg-[#FEF2F2] font-semibold text-xs active:scale-95 transition"
-            >
+            <button onClick={onEndLecture} className="cc-btn cc-btn-sindoor h-9 px-3.5 text-xs">
               <PhoneOff className="w-3.5 h-3.5" />
               <span>End Lecture</span>
             </button>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MessageSquarePlus, Volume2, X, Send, Sparkles, ShieldAlert } from "lucide-react";
+import { Volume2, X, Send, ShieldAlert } from "lucide-react";
 
 interface SpeakForMeModalProps {
   isOpen: boolean;
@@ -48,46 +48,43 @@ export function SpeakForMeModal({ isOpen, onClose, onSubmit, lectureId }: SpeakF
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl border border-[#CBD5E1] p-6 max-w-lg w-full shadow-2xl animate-in slide-in-from-bottom duration-300">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ink/40">
+      <div className="cc-card p-6 max-w-lg w-full animate-chalk-in">
         <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2 text-[#1E3A8A]">
-            <div className="w-8 h-8 rounded-xl bg-[#EFF6FF] flex items-center justify-center text-[#1E3A8A]">
-              <Volume2 className="w-4 h-4" />
-            </div>
+          <div className="flex items-center gap-2">
             <div>
-              <h3 className="text-lg font-bold text-[#0F172A] font-heading">
-                Speak for Me (TTS Assistant)
+              <h3 className="text-2xl font-normal">
+                Speak for me
               </h3>
-              <p className="text-xs text-[#64748B]">
-                Synthesizes clear speech through classroom speakers or instructor audio queue
+              <p className="text-xs text-ink-3">
+                Type it, and your teacher can play it aloud on the classroom speakers.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[#64748B] hover:bg-[#F1F5F9] transition"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-ink-3 hover:bg-paper-2 transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {sentSuccess ? (
-          <div className="bg-[#ECFDF5] border border-[#A7F3D0] text-[#065F46] rounded-2xl p-6 text-center my-4">
-            <div className="w-12 h-12 rounded-full bg-[#D1FAE5] flex items-center justify-center mx-auto mb-2">
-              <Volume2 className="w-6 h-6 text-[#059669]" />
+          <div className="bg-patta-wash border border-patta-line text-patta-deep rounded-xl p-6 text-center my-4">
+            <div className="w-12 h-12 rounded-full bg-card border border-patta-line flex items-center justify-center mx-auto mb-2">
+              <Volume2 className="w-6 h-6 text-patta" />
             </div>
-            <p className="font-bold text-base">Sent to Instructor Audio Queue!</p>
-            <p className="text-xs mt-1 text-[#047857]">
-              Your voice prompt has been prioritized for the professor.
+            <p className="font-bold text-base">Sent to your teacher</p>
+            <p className="text-xs mt-1 text-patta-deep">
+              It will be read aloud when your teacher plays it.
             </p>
           </div>
         ) : (
           <>
             {/* Quick Vernacular / Indian English Presets */}
             <div className="my-4">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#475569] block mb-2">
-                Quick Academic Phrases
+              <label className="cc-eyebrow block mb-2">
+                Quick phrases
               </label>
               <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto no-scrollbar">
                 {PRESET_PHRASES.map((phrase, idx) => (
@@ -95,25 +92,25 @@ export function SpeakForMeModal({ isOpen, onClose, onSubmit, lectureId }: SpeakF
                     key={idx}
                     onClick={() => handleSend(phrase)}
                     disabled={loading}
-                    className="text-left p-2.5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] hover:bg-[#EFF6FF] hover:border-[#BFDBFE] text-xs font-medium text-[#0F172A] transition flex items-center justify-between gap-2 group"
+                    className="text-left px-3 py-2.5 rounded-[10px] border border-rule bg-paper hover:bg-card hover:border-ink text-sm text-ink transition flex items-center justify-between gap-2 group"
                   >
                     <span>&ldquo;{phrase}&rdquo;</span>
-                    <Volume2 className="w-3.5 h-3.5 text-[#64748B] group-hover:text-[#1E3A8A] flex-shrink-0" />
+                    <Volume2 className="w-3.5 h-3.5 text-ink-3 group-hover:text-neel flex-shrink-0" />
                   </button>
                 ))}
               </div>
             </div>
 
             {error && (
-              <p role="alert" className="flex items-start gap-2 p-3 rounded-xl bg-[#FEF2F2] border border-[#FECACA] text-[#B91C1C] text-xs font-semibold">
+              <p role="alert" className="flex items-start gap-2 p-3 rounded-xl bg-sindoor-wash border border-sindoor-line text-sindoor-deep text-xs font-semibold">
                 <ShieldAlert className="w-4 h-4 shrink-0" />
                 <span>{error}</span>
               </p>
             )}
             {/* Custom Input */}
-            <div className="pt-3 border-t border-[#E2E8F0]">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#475569] block mb-1.5">
-                Or Type Custom Text
+            <div className="pt-3 border-t border-rule">
+              <label className="cc-eyebrow block mb-1.5">
+                Or type your own
               </label>
               <div className="flex gap-2">
                 <input
@@ -122,12 +119,12 @@ export function SpeakForMeModal({ isOpen, onClose, onSubmit, lectureId }: SpeakF
                   onChange={(e) => { setCustomText(e.target.value); setError(""); }}
                   onKeyDown={(e) => e.key === "Enter" && handleSend(customText)}
                   placeholder="Type what you want to ask aloud..."
-                  className="flex-1 h-12 px-4 rounded-xl border border-[#CBD5E1] bg-white text-sm text-[#0F172A] focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/20 outline-none"
+                  className="cc-input flex-1 h-12 px-4 text-sm text-ink"
                 />
                 <button
                   onClick={() => handleSend(customText)}
                   disabled={loading || !customText.trim()}
-                  className="h-12 px-5 rounded-xl bg-[#1E3A8A] hover:bg-[#00236F] text-white font-bold text-sm flex items-center gap-1.5 shadow-sm disabled:opacity-50 active:scale-95 transition"
+                  className="cc-btn cc-btn-primary h-12 px-5 text-sm flex items-center gap-1.5"
                 >
                   <Send className="w-4 h-4" />
                   <span>Speak</span>

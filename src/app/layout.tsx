@@ -1,24 +1,46 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
-import { Plus_Jakarta_Sans, Inter } from "next/font/google";
+import {
+  Fraunces,
+  Anek_Latin,
+  Anek_Devanagari,
+  Anek_Bangla,
+  Anek_Tamil,
+  Anek_Telugu,
+  Anek_Gujarati,
+  Anek_Kannada,
+  Anek_Malayalam,
+  Anek_Gurmukhi,
+  Anek_Odia,
+  Tiro_Devanagari_Hindi,
+  JetBrains_Mono,
+} from "next/font/google";
 import "./globals.css";
 
-const plusJakartaSans = Plus_Jakarta_Sans({
-  variable: "--font-plus-jakarta-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  display: "swap",
-});
+// Display serif for headings; Anek (by Ek Type) for body text, because one family covers Latin and the
+// Indian scripts students read captions in, so every language sits on the page with the same voice.
+const fraunces = Fraunces({ variable: "--font-fraunces", subsets: ["latin"], axes: ["SOFT", "opsz"], style: ["normal", "italic"], display: "swap" });
+const anekLatin = Anek_Latin({ variable: "--font-anek-latin", subsets: ["latin"], display: "swap" });
+// Indic scripts download only when a page shows that script.
+const anekDeva = Anek_Devanagari({ display: "swap", preload: false, variable: "--font-anek-deva", subsets: ["devanagari"] });
+const anekBangla = Anek_Bangla({ display: "swap", preload: false, variable: "--font-anek-bangla", subsets: ["bengali"] });
+const anekTamil = Anek_Tamil({ display: "swap", preload: false, variable: "--font-anek-tamil", subsets: ["tamil"] });
+const anekTelugu = Anek_Telugu({ display: "swap", preload: false, variable: "--font-anek-telugu", subsets: ["telugu"] });
+const anekGujarati = Anek_Gujarati({ display: "swap", preload: false, variable: "--font-anek-gujarati", subsets: ["gujarati"] });
+const anekKannada = Anek_Kannada({ display: "swap", preload: false, variable: "--font-anek-kannada", subsets: ["kannada"] });
+const anekMalayalam = Anek_Malayalam({ display: "swap", preload: false, variable: "--font-anek-malayalam", subsets: ["malayalam"] });
+const anekGurmukhi = Anek_Gurmukhi({ display: "swap", preload: false, variable: "--font-anek-gurmukhi", subsets: ["gurmukhi"] });
+const anekOdia = Anek_Odia({ display: "swap", preload: false, variable: "--font-anek-odia", subsets: ["oriya"] });
+const tiroDeva = Tiro_Devanagari_Hindi({ display: "swap", preload: false, variable: "--font-tiro-deva", weight: "400", style: ["normal", "italic"], subsets: ["devanagari"] });
+const mono = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin"], weight: ["500", "700"], display: "swap" });
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-});
+const fontVars = [
+  fraunces, anekLatin, anekDeva, anekBangla, anekTamil, anekTelugu, anekGujarati,
+  anekKannada, anekMalayalam, anekGurmukhi, anekOdia, tiroDeva, mono,
+].map((f) => f.variable).join(" ");
 
 export const metadata: Metadata = {
-  title: "ClassCaption — AI-Powered Classroom Accessibility Platform",
+  title: "ClassCaption · Every lecture, in every Indian language",
   description: "Real-time multilingual live captions, AI-glossary, speech pace coaching, and lecture intelligence for Indian educational institutions.",
 };
 
@@ -37,9 +59,9 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${plusJakartaSans.variable} ${inter.variable} h-full antialiased`}
+      className={`${fontVars} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans bg-[#F8FAFC] text-[#0F172A]">
+      <body className="min-h-full flex flex-col font-sans bg-paper text-ink">
         <script dangerouslySetInnerHTML={{ __html: `window.__CC_PUBLIC=${JSON.stringify(publicEnv).replace(/</g, "\\u003c")}` }} />
         {children}
       </body>

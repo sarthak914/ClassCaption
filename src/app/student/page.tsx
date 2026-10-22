@@ -7,7 +7,7 @@ import { Navbar } from "@/components/navigation/Navbar";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { api, pref, setPref, sourceLabel } from "@/lib/client/api";
 import { LANGUAGES } from "@/lib/languages";
-import { Sparkles, Volume2, QrCode, ArrowRight, BookOpen, LogOut, ShieldCheck, Video, Search, FileText, ListChecks, MessageCircleQuestion, UserPlus } from "lucide-react";
+import { Sparkles, Volume2, QrCode, HelpCircle, ArrowRight, BookOpen, LogOut, ShieldCheck, Video, Search, FileText, ListChecks, MessageCircleQuestion, UserPlus } from "lucide-react";
 
 type Room = {
   id: string;
@@ -132,19 +132,19 @@ export default function StudentHomePage() {
 
   if (home && !home.classrooms.length) {
     return (
-      <div className="min-h-screen bg-[#F8FAFC] pb-24 text-[#0F172A]">
-        <Navbar title="ClassCaption" subtitle="Assistive Lecture Stream" />
+      <div className="min-h-screen bg-paper pb-24 text-ink">
+        <Navbar title="ClassCaption" subtitle="Your classes" />
         <main className="max-w-2xl mx-auto px-4 py-8">
-          <section className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs text-center space-y-3">
-            <h1 className="text-2xl font-extrabold font-heading">{name ? `Namaste, ${name}` : "Welcome to ClassCaption"}</h1>
-            <p className="text-sm text-[#475569]">Join your first class with the PIN or QR code your teacher shows on the screen.</p>
-            <Link href="/join" className="inline-flex h-12 px-6 rounded-2xl bg-[#1E3A8A] text-white font-extrabold text-sm items-center gap-2">
+          <section className="cc-card p-6 text-center space-y-3">
+            <h1 className="text-3xl font-normal">{name ? `Namaste, ${name}` : "Welcome to ClassCaption"}</h1>
+            <p className="text-sm text-ink-2">Join your first class with the PIN or QR code your teacher shows on the screen.</p>
+            <Link href="/join" className="cc-btn cc-btn-primary inline-flex h-12 px-6 text-sm items-center gap-2">
               <QrCode className="w-4 h-4" />
               Join a class
             </Link>
             {!home.student?.account && (
-              <p className="text-xs text-[#64748B]">
-                Already have a student account? <Link href="/student/login" className="font-bold text-[#1E3A8A] hover:underline">Sign in</Link> to see your classes and past lectures.
+              <p className="text-xs text-ink-3">
+                Already have a student account? <Link href="/student/login" className="font-bold text-neel hover:underline">Sign in</Link> to see your classes and past lectures.
               </p>
             )}
           </section>
@@ -154,100 +154,99 @@ export default function StudentHomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-24 text-[#0F172A]">
-      <Navbar title="ClassCaption" subtitle="Assistive Lecture Stream" />
+    <div className="min-h-screen bg-paper pb-24 text-ink">
+      <Navbar title="ClassCaption" subtitle="Your classes" />
 
       <main className="max-w-2xl mx-auto px-4 py-5 space-y-5">
         {/* 1. Greeting */}
-        <section className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0F172A] tracking-tight font-heading mb-2">
-            {name ? `Namaste, ${name}` : " "}
+        <section className="pt-2 pb-1">
+          <p className="font-[family-name:var(--font-tiro-deva)] text-sindoor text-lg leading-none mb-1" lang="hi">नमस्ते</p>
+          <h1 className="text-3xl sm:text-4xl font-normal tracking-tight mb-2">
+            {name ? name : "\u00a0"}
           </h1>
-          <p className="text-sm text-[#475569] leading-relaxed mb-4">
-            {home
-              ? `You're in ${home.classrooms.length} classroom${home.classrooms.length === 1 ? "" : "s"}. Captions arrive in ${langInfo.name} (${langInfo.native}).`
-              : "Loading your classes..."}
+          <p className="text-[15px] text-ink-2 leading-relaxed">
+            {home ? (
+              <>
+                You&apos;re in {home.classrooms.length} classroom{home.classrooms.length === 1 ? "" : "s"}. Captions arrive in{" "}
+                <span className="font-semibold text-ink">{langInfo.name}</span> <span lang={langInfo.code}>({langInfo.native})</span>.
+              </>
+            ) : (
+              "Loading your classes..."
+            )}
           </p>
-          <div className="pt-3 border-t border-[#E2E8F0] flex items-center gap-2 text-xs font-semibold text-[#059669]">
-            <span className="w-2 h-2 rounded-full bg-[#059669] animate-pulse" />
-            <span>Server: {latencyMs === null ? "Connecting..." : `connected (${latencyMs} ms)`}</span>
-          </div>
+          <p className="mt-2 flex items-center gap-2 text-xs text-ink-3">
+            <span className="w-1.5 h-1.5 rounded-full bg-patta animate-pulse" />
+            {latencyMs === null ? "Connecting..." : `Connected · ${latencyMs} ms`}
+          </p>
         </section>
 
         {/* 2. Live right now */}
-        <section className={`bg-white rounded-3xl border-2 overflow-hidden shadow-md ${live ? "border-[#059669]" : "border-[#CBD5E1]"}`}>
-          <div className={`${live ? "bg-[#059669]" : "bg-[#64748B]"} text-white px-5 py-3 flex items-center justify-between`}>
-            <div className="flex items-center gap-2">
-              <span className={`w-2.5 h-2.5 rounded-full bg-white ${live ? "animate-live-pulse" : ""}`} />
-              <span className="font-extrabold text-xs uppercase tracking-wider">{live ? "LIVE RIGHT NOW" : "NO LIVE LECTURE"}</span>
+        {live ? (
+          <section className="cc-board overflow-hidden">
+            <div className="px-5 pt-5 flex items-center justify-between gap-2">
+              <span className="cc-stamp text-chalk-pink">
+                <span className="w-1.5 h-1.5 rounded-full bg-chalk-pink animate-live-pulse" />
+                Live now
+              </span>
+              <span className="font-mono text-xs text-chalk-dim">{liveMins} min in</span>
             </div>
-            <span className="text-xs font-bold bg-white/20 px-2.5 py-0.5 rounded-full">
-              {live ? `${liveMins} min in` : "Checking every few seconds"}
-            </span>
-          </div>
+            <div className="px-5 pt-3 pb-5">
+              <h2 className="text-2xl font-normal text-chalk leading-tight">
+                {live.name}
+                {live.subject_code && <span className="ml-2 align-middle font-mono text-xs text-chalk-blue">{live.subject_code}</span>}
+              </h2>
+              <p className="text-sm text-chalk-dim mt-1 mb-4">
+                {live.live_class!.title}
+                {live.teacher ? ` · ${live.teacher.name}` : ""}
+              </p>
 
-          <div className="p-6">
-            <div className="flex items-center gap-2 mb-2">
-              {live?.subject_code && (
-                <span className="px-2.5 py-0.5 rounded-md bg-[#EFF6FF] text-[#1E40AF] font-bold text-xs">{live.subject_code}</span>
-              )}
-              <h2 className="text-xl font-bold text-[#0F172A] font-heading">{live ? live.name : "Waiting for your teacher"}</h2>
+              <div className="border-l-2 border-chalk-blue/50 pl-3 mb-5">
+                <div className="text-[11px] font-mono text-chalk-blue mb-1">
+                  {sourceLabel(preview?.source_lang)} → {langInfo.name}
+                </div>
+                {preview ? (
+                  <>
+                    <p className="font-heading italic text-sm text-chalk/60 mb-1">&ldquo;{preview.text}&rdquo;</p>
+                    <p lang={lang} className="text-lg text-chalk leading-snug">{preview.display}</p>
+                  </>
+                ) : (
+                  <p className="font-heading italic text-sm text-chalk-dim">Waiting for the teacher to speak...</p>
+                )}
+              </div>
+
+              <Link href={`/student/live/${live.live_class!.id}`} className="cc-btn cc-btn-haldi w-full h-13 text-base">
+                Open live captions
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <button
+                  onClick={sendLost}
+                  className="h-11 rounded-[10px] border border-board-line text-chalk text-sm font-semibold flex items-center justify-center gap-1.5 hover:bg-white/5 transition"
+                >
+                  <HelpCircle className="w-4 h-4 text-chalk-yellow" />
+                  I&apos;m lost
+                </button>
+                <Link
+                  href={`/student/live/${live.live_class!.id}?openSpeak=true`}
+                  className="h-11 rounded-[10px] border border-board-line text-chalk text-sm font-semibold flex items-center justify-center gap-1.5 hover:bg-white/5 transition"
+                >
+                  <Volume2 className="w-4 h-4 text-chalk-blue" />
+                  Speak for me
+                </Link>
+              </div>
             </div>
-            <p className="text-sm font-semibold text-[#475569] mb-4">
-              {live
-                ? `${live.live_class!.title}${live.teacher ? ` • ${live.teacher.name}` : ""}`
-                : "When one of your teachers starts a class, it shows up here."}
-            </p>
-
-            {live && (
-              <>
-                <div className="bg-[#0B0F19] rounded-2xl p-4 mb-4 text-[#F8FAFC]">
-                  <div className="text-[11px] font-mono text-[#60A5FA] mb-1">
-                    Latest caption ({sourceLabel(preview?.source_lang)} → {langInfo.name}):
-                  </div>
-                  {preview ? (
-                    <>
-                      <p className="text-xs text-gray-300 italic mb-2">&ldquo;{preview.text}&rdquo;</p>
-                      <p className="text-sm font-semibold text-white">&ldquo;{preview.display}&rdquo;</p>
-                    </>
-                  ) : (
-                    <p className="text-xs text-gray-300 italic">Waiting for the teacher to speak...</p>
-                  )}
-                </div>
-
-                <div className="space-y-2.5">
-                  <Link
-                    href={`/student/live/${live.live_class!.id}`}
-                    className="w-full h-14 bg-[#1E3A8A] hover:bg-[#00236F] text-white font-extrabold text-base rounded-2xl flex items-center justify-center gap-2 shadow-sm transition active:scale-95"
-                  >
-                    <span>Open Live Captions</span>
-                    <ArrowRight className="w-5 h-5" />
-                  </Link>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={sendLost}
-                      className="h-12 rounded-xl bg-[#FEF3C7] border-2 border-[#D97706] text-[#92400E] font-bold text-xs flex items-center justify-center gap-1.5 hover:bg-[#FDE68A] transition active:scale-95"
-                    >
-                      ❓ I&apos;m Lost (anonymous)
-                    </button>
-                    <Link
-                      href={`/student/live/${live.live_class!.id}?openSpeak=true`}
-                      className="h-12 rounded-xl bg-[#EFF6FF] border border-[#BFDBFE] text-[#1E3A8A] font-bold text-xs flex items-center justify-center gap-1.5 hover:bg-[#DBEAFE] transition active:scale-95"
-                    >
-                      <Volume2 className="w-4 h-4" />
-                      Speak for Me
-                    </Link>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </section>
+          </section>
+        ) : (
+          <section className="rounded-card border border-dashed border-rule-strong px-5 py-6 text-center cc-kolam">
+            <p className="cc-eyebrow mb-1">No live lecture</p>
+            <p className="text-sm text-ink-2">When one of your teachers starts a class, it shows up here. Checking every few seconds.</p>
+          </section>
+        )}
 
         {/* 3. Join another class */}
-        <section className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs">
-          <h3 className="text-base font-bold text-[#0F172A] font-heading mb-1">Join another class</h3>
-          <p className="text-xs text-[#64748B] mb-4">Enter the 6-character PIN on your teacher&apos;s screen, or scan their QR code with your camera.</p>
+        <section className="cc-card p-5">
+          <h3 className="text-lg font-medium mb-0.5">Join another class</h3>
+          <p className="text-sm text-ink-3 mb-4">Enter the 6-character PIN on your teacher&apos;s screen, or scan their QR code.</p>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -260,9 +259,9 @@ export default function StudentHomePage() {
               onChange={(e) => setPin(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6))}
               placeholder="PIN"
               aria-label="Classroom PIN"
-              className="h-12 px-4 rounded-xl border-2 border-[#CBD5E1] bg-white text-base font-mono font-bold tracking-widest uppercase placeholder:text-[#94A3B8] focus:border-[#1E3A8A] outline-none"
+              className="cc-input min-w-0 h-12 px-4 text-lg font-mono font-bold tracking-[0.3em] uppercase placeholder:tracking-normal placeholder:normal-case"
             />
-            <button type="submit" className="h-12 px-5 rounded-xl bg-[#1E3A8A] hover:bg-[#00236F] text-white font-bold text-sm flex items-center gap-1.5">
+            <button type="submit" className="cc-btn cc-btn-primary h-12 px-5 text-sm">
               <QrCode className="w-4 h-4" />
               Join
             </button>
@@ -271,47 +270,47 @@ export default function StudentHomePage() {
 
         {/* 4. My classrooms */}
         <section id="classes" className="space-y-3 pt-2 scroll-mt-20">
-          <h2 className="text-lg font-bold text-[#0F172A] font-heading">My Classrooms</h2>
+          <h2 className="cc-eyebrow px-0.5">My classrooms</h2>
           {home?.classrooms.map((room) => {
             const roomLectures = home.lectures.filter((l) => l.classroom_id === room.id);
             return (
-              <div key={room.id} className={`bg-white rounded-3xl border p-5 shadow-xs ${room.live_class ? "border-2 border-[#059669]/50" : "border-[#E2E8F0]"}`}>
+              <div key={room.id} className={`cc-card p-5 ${room.live_class ? "!border-sindoor-line" : ""}`}>
                 <div className="flex items-center justify-between mb-2 gap-2">
-                  <span className="px-2.5 py-0.5 rounded-md bg-[#F1F5F9] text-[#475569] text-xs font-semibold">
+                  <span className="font-mono text-xs text-ink-3">
                     {room.subject_code || "Classroom"}
                     {room.room ? ` • ${room.room}` : ""}
                   </span>
                   {room.live_class && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] text-xs font-bold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#059669] animate-pulse" />
-                      LIVE NOW
+                    <span className="cc-stamp text-sindoor">
+                      <span className="w-1.5 h-1.5 rounded-full bg-sindoor animate-live-pulse" />
+                      Live
                     </span>
                   )}
                 </div>
-                <h3 className="text-base font-bold text-[#0F172A] font-heading">{room.name}</h3>
+                <h3 className="text-xl font-medium">{room.name}</h3>
                 {room.teacher && (
-                  <p className="text-xs text-[#475569]">
+                  <p className="text-xs text-ink-2">
                     {room.teacher.name}
                     {room.teacher.institution ? ` • ${room.teacher.institution}` : ""}
                   </p>
                 )}
-                <p className="text-xs text-[#64748B] flex items-center gap-1.5 mt-2 mb-3">
-                  <BookOpen className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                <p className="text-xs text-ink-3 flex items-center gap-1.5 mt-2 mb-3">
+                  <BookOpen className="w-3.5 h-3.5 text-neel" />
                   {room.lecture_count} recorded lecture{room.lecture_count === 1 ? "" : "s"} with subtitles and notes
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   {room.live_class ? (
-                    <Link href={`/student/live/${room.live_class.id}`} className="h-10 bg-[#059669] hover:bg-[#047857] text-white font-bold text-xs rounded-xl flex items-center justify-center">
+                    <Link href={`/student/live/${room.live_class.id}`} className="cc-btn cc-btn-primary h-10 text-xs flex items-center justify-center">
                       Open Live Captions
                     </Link>
                   ) : (
-                    <Link href={`/student/live/classroom-${room.id}`} className="h-10 bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#0F172A] font-bold text-xs rounded-xl flex items-center justify-center">
+                    <Link href={`/student/live/classroom-${room.id}`} className="cc-btn h-10 text-xs">
                       Wait for next class
                     </Link>
                   )}
                   <button
                     onClick={() => setOpenDetails(openDetails === room.id ? null : room.id)}
-                    className="h-10 bg-[#F8FAFC] border border-[#E2E8F0] text-[#475569] font-semibold text-xs rounded-xl"
+                    className="cc-btn h-10 text-xs"
                   >
                     {openDetails === room.id ? "Hide lectures" : "Lectures"}
                   </button>
@@ -323,56 +322,56 @@ export default function StudentHomePage() {
         </section>
 
         {/* 5. Lecture library: every past lecture of my classrooms */}
-        <section id="recordings" className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs scroll-mt-20">
+        <section id="recordings" className="cc-card p-6 scroll-mt-20">
           <div className="flex items-center justify-between gap-2 mb-1">
             <div className="flex items-center gap-2">
-              <Video className="w-4 h-4 text-[#1E3A8A]" />
-              <h3 className="text-base font-bold text-[#0F172A] font-heading">My Lectures</h3>
+              <Video className="w-4 h-4 text-neel" />
+              <h3 className="text-lg font-medium">My lectures</h3>
             </div>
-            <span className="text-xs font-bold text-[#64748B]">{home?.lectures.length ?? 0} total</span>
+            <span className="text-xs font-bold text-ink-3">{home?.lectures.length ?? 0} total</span>
           </div>
-          <p className="text-xs text-[#64748B] mb-3">Every class you attended or missed: AI notes and summary, a quiz, and Ask-the-lecture, in {langInfo.name}.</p>
+          <p className="text-xs text-ink-3 mb-3">Every class you attended or missed: AI notes and summary, a quiz, and Ask-the-lecture, in {langInfo.name}.</p>
           <LectureLibrary lectures={home?.lectures ?? []} rooms={home?.classrooms ?? []} />
         </section>
 
         {/* 6. Glossary */}
-        <section id="glossary" className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs scroll-mt-20">
+        <section id="glossary" className="cc-card p-6 scroll-mt-20">
           <div className="flex items-center justify-between mb-2 gap-2">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#1E3A8A]" />
-              <h3 className="text-base font-bold text-[#0F172A] font-heading">Key Terms</h3>
+              <Sparkles className="w-4 h-4 text-neel" />
+              <h3 className="text-lg font-medium">Key terms</h3>
             </div>
             {terms && (
-              <Link href={`/student/lectures/${terms.lecture.id}?tab=notes`} className="text-xs font-bold text-[#059669] truncate max-w-[50%]">
+              <Link href={`/student/lectures/${terms.lecture.id}?tab=notes`} className="text-xs font-bold text-patta truncate max-w-[50%]">
                 {terms.lecture.title}
               </Link>
             )}
           </div>
-          <p className="text-xs text-[#64748B] mb-4">Technical terms from your latest lecture, explained in {langInfo.name}.</p>
+          <p className="text-xs text-ink-3 mb-4">Technical terms from your latest lecture, explained in {langInfo.name}.</p>
           <div className="space-y-3">
-            {termsLoading && !terms && <p className="text-xs text-[#64748B]">Preparing the glossary...</p>}
-            {!termsLoading && !terms && <p className="text-xs text-[#64748B]">Terms appear here after your first finished lecture.</p>}
+            {termsLoading && !terms && <p className="text-xs text-ink-3">Preparing the glossary...</p>}
+            {!termsLoading && !terms && <p className="text-xs text-ink-3">Terms appear here after your first finished lecture.</p>}
             {terms?.terms.slice(0, 6).map((t) => (
-              <div key={t.term} className="p-3.5 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0]">
-                <span className="font-bold text-sm text-[#0F172A] block mb-1">{t.term}</span>
-                <p className="text-xs text-[#475569]">{t.meaning}</p>
+              <div key={t.term} className="p-3.5 rounded-xl bg-paper border border-rule">
+                <span className="font-bold text-sm text-ink block mb-1">{t.term}</span>
+                <p className="text-xs text-ink-2">{t.meaning}</p>
               </div>
             ))}
           </div>
         </section>
 
         {/* 7. Profile & accessibility */}
-        <section id="profile" className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs space-y-4 scroll-mt-20">
-          <h3 className="text-base font-bold text-[#0F172A] font-heading">{account ? "My account" : "This device"}</h3>
+        <section id="profile" className="cc-card p-6 space-y-4 scroll-mt-20">
+          <h3 className="text-lg font-medium">{account ? "My account" : "This device"}</h3>
           {account ? (
-            <p className="text-xs text-[#475569]">
+            <p className="text-xs text-ink-2">
               {home?.student?.email}
               {home?.student?.roll_no ? ` · Roll no. ${home.student.roll_no}` : ""}. Your classes and lectures show up on every device you sign in on.
             </p>
           ) : (
             <Link
               href="/student/login?mode=signup"
-              className="flex items-center gap-3 p-3.5 rounded-2xl bg-[#EFF6FF] border border-[#BFDBFE] text-[#1E3A8A] hover:bg-[#DBEAFE]"
+              className="flex items-center gap-3 p-3.5 rounded-xl bg-neel-wash border border-neel-line text-neel hover:bg-neel-wash"
             >
               <UserPlus className="w-5 h-5 flex-shrink-0" />
               <span className="text-xs">
@@ -382,12 +381,12 @@ export default function StudentHomePage() {
             </Link>
           )}
           <div>
-            <label htmlFor="lang" className="text-xs font-bold uppercase tracking-wider text-[#475569] block mb-1">Caption language</label>
+            <label htmlFor="lang" className="cc-eyebrow block mb-1.5">Caption language</label>
             <select
               id="lang"
               value={lang}
               onChange={(e) => changeLang(e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-[#CBD5E1] bg-white text-sm"
+              className="cc-input w-full h-11 px-3 text-sm"
             >
               {LANGUAGES.map((l) => (
                 <option key={l.code} value={l.code}>
@@ -399,18 +398,18 @@ export default function StudentHomePage() {
           <button
             onClick={testOutput}
             className={`w-full h-11 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition active:scale-95 ${
-              tested ? "bg-[#ECFDF5] border-[#A7F3D0] text-[#065F46]" : "bg-white border-[#CBD5E1] text-[#0F172A] hover:bg-[#F1F5F9]"
+              tested ? "bg-patta-wash border-patta-line text-patta-deep" : "bg-card border-rule-strong text-ink hover:bg-paper-2"
             }`}
           >
-            <Volume2 className="w-4 h-4 text-[#1E3A8A]" />
+            <Volume2 className="w-4 h-4 text-neel" />
             {tested ? "Playing sound check..." : "Test read-aloud and vibration"}
           </button>
-          <div className="pt-3 border-t border-[#E2E8F0] flex items-center justify-between gap-2 text-xs text-[#64748B]">
+          <div className="pt-3 border-t border-rule flex items-center justify-between gap-2 text-xs text-ink-3">
             <span className="flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-[#059669]" />
+              <ShieldCheck className="w-4 h-4 text-patta" />
               {account ? `Signed in as ${name ?? "..."}` : `Joined as ${name ?? "..."} on this device`}
             </span>
-            <button onClick={leave} className="font-bold text-[#64748B] hover:text-[#DC2626] flex items-center gap-1">
+            <button onClick={leave} className="font-bold text-ink-3 hover:text-sindoor flex items-center gap-1">
               <LogOut className="w-3.5 h-3.5" />
               {account ? "Sign out" : "Leave"}
             </button>
@@ -433,18 +432,18 @@ function LectureLibrary({ lectures, rooms }: { lectures: LectureItem[]; rooms: R
   const shown = lectures.filter(
     (l) => (room === "all" || l.classroom_id === room) && (!q.trim() || `${l.title} ${roomName(l.classroom_id)}`.toLowerCase().includes(q.trim().toLowerCase())),
   );
-  if (!lectures.length) return <p className="text-xs text-[#64748B] mt-3">No lectures yet. They appear here as soon as your teacher ends a live class or uploads a recording.</p>;
+  if (!lectures.length) return <p className="text-xs text-ink-3 mt-3">No lectures yet. They appear here as soon as your teacher ends a live class or uploads a recording.</p>;
 
   return (
     <div className="space-y-3">
       <div className="relative">
-        <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
+        <Search className="w-4 h-4 text-ink-4 absolute left-3 top-1/2 -translate-y-1/2" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search lectures"
           aria-label="Search lectures"
-          className="w-full h-10 pl-9 pr-3 rounded-xl border border-[#CBD5E1] bg-white text-sm focus:border-[#1E3A8A] outline-none"
+          className="cc-input w-full h-10 pl-9 pr-3 text-sm"
         />
       </div>
       {rooms.length > 1 && (
@@ -454,7 +453,7 @@ function LectureLibrary({ lectures, rooms }: { lectures: LectureItem[]; rooms: R
               key={r.id}
               onClick={() => setRoom(r.id)}
               className={`h-8 px-3 rounded-full text-xs font-bold whitespace-nowrap border transition ${
-                room === r.id ? "bg-[#1E3A8A] text-white border-[#1E3A8A]" : "bg-white text-[#475569] border-[#CBD5E1] hover:bg-[#F1F5F9]"
+                room === r.id ? "bg-neel text-white border-neel" : "bg-card text-ink-2 border-rule-strong hover:bg-paper-2"
               }`}
             >
               {r.name}
@@ -462,27 +461,27 @@ function LectureLibrary({ lectures, rooms }: { lectures: LectureItem[]; rooms: R
           ))}
         </div>
       )}
-      {!shown.length && <p className="text-xs text-[#64748B]">No lectures match.</p>}
+      {!shown.length && <p className="text-xs text-ink-3">No lectures match.</p>}
       <div className="space-y-2">
         {shown.map((l) => {
           const ready = l.status === "ready";
           const href = `/student/lectures/${l.id}`;
           return (
-            <div key={l.id} className="p-3.5 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC]">
+            <div key={l.id} className="p-3.5 rounded-xl border border-rule bg-paper">
               <Link href={href} className="block min-w-0 group">
                 <span className="flex items-center justify-between gap-2">
-                  <span className="font-bold text-sm text-[#0F172A] group-hover:text-[#1E3A8A] truncate">{l.title}</span>
+                  <span className="font-bold text-sm text-ink group-hover:text-neel truncate">{l.title}</span>
                   {l.quiz && (
                     <span
-                      className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
-                        l.quiz.best === l.quiz.total ? "bg-[#ECFDF5] text-[#065F46]" : "bg-[#FEF3C7] text-[#92400E]"
+                      className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                        l.quiz.best === l.quiz.total ? "bg-patta-wash text-patta-deep" : "bg-haldi-wash text-haldi-ink"
                       }`}
                     >
                       Quiz {l.quiz.best}/{l.quiz.total}
                     </span>
                   )}
                 </span>
-                <span className="text-[11px] text-[#64748B] truncate block">
+                <span className="text-[11px] text-ink-3 truncate block">
                   {[roomName(l.classroom_id), new Date(l.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }), fmtDuration(l.duration_s), l.source === "live" ? "Live class" : "Recording"]
                     .filter(Boolean)
                     .join(" · ")}
@@ -490,18 +489,18 @@ function LectureLibrary({ lectures, rooms }: { lectures: LectureItem[]; rooms: R
               </Link>
               {ready ? (
                 <div className="grid grid-cols-3 gap-1.5 mt-2.5">
-                  <Link href={`${href}?tab=notes`} className="h-8 rounded-lg bg-white border border-[#CBD5E1] text-[11px] font-bold text-[#0F172A] hover:bg-[#EFF6FF] flex items-center justify-center gap-1">
-                    <FileText className="w-3.5 h-3.5 text-[#1E3A8A]" /> Notes
+                  <Link href={`${href}?tab=notes`} className="h-8 rounded-lg bg-card border border-rule-strong text-[11px] font-bold text-ink hover:bg-neel-wash flex items-center justify-center gap-1">
+                    <FileText className="w-3.5 h-3.5 text-neel" /> Notes
                   </Link>
-                  <Link href={`${href}?tab=quiz`} className="h-8 rounded-lg bg-white border border-[#CBD5E1] text-[11px] font-bold text-[#0F172A] hover:bg-[#EFF6FF] flex items-center justify-center gap-1">
-                    <ListChecks className="w-3.5 h-3.5 text-[#1E3A8A]" /> Quiz
+                  <Link href={`${href}?tab=quiz`} className="h-8 rounded-lg bg-card border border-rule-strong text-[11px] font-bold text-ink hover:bg-neel-wash flex items-center justify-center gap-1">
+                    <ListChecks className="w-3.5 h-3.5 text-neel" /> Quiz
                   </Link>
-                  <Link href={`${href}?tab=ask`} className="h-8 rounded-lg bg-white border border-[#CBD5E1] text-[11px] font-bold text-[#0F172A] hover:bg-[#EFF6FF] flex items-center justify-center gap-1">
-                    <MessageCircleQuestion className="w-3.5 h-3.5 text-[#1E3A8A]" /> Ask
+                  <Link href={`${href}?tab=ask`} className="h-8 rounded-lg bg-card border border-rule-strong text-[11px] font-bold text-ink hover:bg-neel-wash flex items-center justify-center gap-1">
+                    <MessageCircleQuestion className="w-3.5 h-3.5 text-neel" /> Ask
                   </Link>
                 </div>
               ) : (
-                <p className="text-[11px] text-[#B45309] font-semibold mt-1.5">{l.status === "failed" ? "Processing failed" : "Preparing transcript and notes..."}</p>
+                <p className="text-[11px] text-haldi-deep font-semibold mt-1.5">{l.status === "failed" ? "Processing failed" : "Preparing transcript and notes..."}</p>
               )}
             </div>
           );
@@ -512,17 +511,17 @@ function LectureLibrary({ lectures, rooms }: { lectures: LectureItem[]; rooms: R
 }
 
 function LectureList({ items }: { items: LectureItem[] }) {
-  if (!items.length) return <p className="text-xs text-[#64748B] mt-3">No lectures yet.</p>;
+  if (!items.length) return <p className="text-xs text-ink-3 mt-3">No lectures yet.</p>;
   return (
     <div className="mt-3 space-y-1.5">
       {items.map((l) => (
         <Link
           key={l.id}
           href={`/student/lectures/${l.id}`}
-          className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] hover:bg-[#EFF6FF] text-xs"
+          className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-rule bg-paper hover:bg-neel-wash text-xs"
         >
-          <span className="font-semibold text-[#0F172A] truncate min-w-0">{l.title}</span>
-          <span className="text-[#64748B] flex-shrink-0">{l.status === "ready" ? new Date(l.created_at).toLocaleDateString() : l.status}</span>
+          <span className="font-semibold text-ink truncate min-w-0">{l.title}</span>
+          <span className="text-ink-3 flex-shrink-0">{l.status === "ready" ? new Date(l.created_at).toLocaleDateString() : l.status}</span>
         </Link>
       ))}
     </div>
