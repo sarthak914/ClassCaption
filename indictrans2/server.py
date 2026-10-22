@@ -16,6 +16,7 @@ import os
 import re
 import threading
 import time
+import unicodedata
 
 import torch
 from fastapi import FastAPI, Header, HTTPException
@@ -48,16 +49,40 @@ API_KEY = os.environ.get("INDICTRANS2_API_KEY", "")
 
 class SimpleProcessor:
     """Minimal stand-in for IndicTransToolkit: the language tags the model expects, plus light cleanup.
-    The toolkit also protects URLs/numbers and normalises Indic punctuation, so it is a little better when available."""
+    The toolkit also protects URLs/numbers and normalises Indic punctuation, so it is a little better when available.
+
+    The models read and write every Brahmic-script language in Devanagari, so text is moved between
+    Devanagari and the language's own script. The Unicode blocks share one layout, so it is a fixed offset."""
+
+    BLOCKS = {"Beng": 0x0980, "Guru": 0x0A00, "Gujr": 0x0A80, "Orya": 0x0B00, "Taml": 0x0B80,
+              "Telu": 0x0C00, "Knda": 0x0C80, "Mlym": 0x0D00}
+    SHARED = {0x64, 0x65}  # danda and double danda are used as-is by every script
+
+    @staticmethod
+    def _shift(s, base_from, base_to):
+        out = []
+        for c in s:
+            off = ord(c) - base_from
+            if 0 <= off < 0x80 and off not in SimpleProcessor.SHARED:
+                mapped = chr(base_to + off)
+                if unicodedata.name(mapped, ""):  # skip letters the target script doesn't have
+                    c = mapped
+            out.append(c)
+        return "".join(out)
 
     def preprocess_batch(self, sents, src_lang, tgt_lang):
+        base = self.BLOCKS.get(src_lang.split("_")[1])
+        sents = [self._shift(s, base, 0x0900) if base else s for s in sents]
         return [f"{src_lang} {tgt_lang} " + re.sub(r"\s+", " ", s).strip() for s in sents]
 
     def postprocess_batch(self, sents, lang):
+        base = self.BLOCKS.get(lang.split("_")[1])
         out = []
         for s in sents:
             s = re.sub(r"\s+", " ", s).strip()
             s = re.sub(r"\s+([,.!?;:।)])", r"\1", s)  # no space before punctuation
+            if base:
+                s = self._shift(s, 0x0900, base)
             out.append(s)
         return out
 

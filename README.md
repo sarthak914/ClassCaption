@@ -64,6 +64,9 @@ docker run -p 3000:3000 --env-file .env.local sarthak914/classcaption
   pip install -r requirements.txt     # torch, transformers (IndicTransToolkit optional, needs a C++ compiler)
   python server.py                    # http://localhost:7860, downloads ~1 GB of models on first start
   ```
+  - **Gated models:** the AI4Bharat models need a Hugging Face login. Click "Agree and access repository" on both [indictrans2-en-indic-dist-200M](https://huggingface.co/ai4bharat/indictrans2-en-indic-dist-200M) and [indictrans2-indic-en-dist-200M](https://huggingface.co/ai4bharat/indictrans2-indic-en-dist-200M), create a Read token at huggingface.co/settings/tokens, and set it as `HF_TOKEN` (e.g. `setx HF_TOKEN "hf_..."` on Windows, then open a new terminal) or run `huggingface-cli login`. Without it the server stops with "gated repo … 401".
+  - **Restarting:** once the models are downloaded, start with `HF_HUB_OFFLINE=1` (PowerShell: `$env:HF_HUB_OFFLINE='1'; python server.py`) so startup never touches the network.
+
   Or with Docker: `docker compose --profile indictrans2 up --build -d`. Then set `INDICTRANS2_URL=http://localhost:7860` (`http://indictrans2:7860` inside compose). The distilled 200M models are used by default (laptop CPU); set `INDICTRANS2_SIZE=1B` on a GPU.
   - **Automatic routing:** once `INDICTRANS2_URL` is set, every English caption is checked (`src/lib/translate/hinglish.ts`). **Pure English goes to IndicTrans2**, and **Hinglish** (romanised Hindi words like "hai", "kya", "mein", or any Devanagari) **goes to Groq** and the rest of `TRANSLATION_PROVIDERS`, because the LLMs fix Hinglish and speech mistakes and IndicTrans2 doesn't. If IndicTrans2 fails, the chain carries on as usual. Set `INDICTRANS2_ROUTING=off` to use `TRANSLATION_PROVIDERS` exactly as written.
 
