@@ -246,5 +246,63 @@ create table if not exists public.quiz_attempts (
 );
 alter table public.quiz_attempts enable row level security;  -- server only
 
+-- ---------------------------------------------------------------------------
+-- v6: answers to student questions, who attended, next-day revision, and the teacher's class report.
+
+-- Questions remember who asked (the pass id, never shown) and carry the teacher's answer,
+-- translated into every language in the class. The answer reaches students as an "answer" event.
+alter table public.reactions add column if not exists student_sid text;
+alter table public.reactions add column if not exists answer text;
+alter table public.reactions add column if not exists answer_translations jsonb;
+alter table public.reactions add column if not exists answered_at timestamptz;
+alter table public.class_events drop constraint if exists class_events_kind_check;
+alter table public.class_events add constraint class_events_kind_check check (kind in ('announcement','board','ended','answer'));
+
+-- Students who opened a live class, and the language they read it in.
+create table if not exists public.attendance (
+  class_id     uuid not null references public.classes(id) on delete cascade,
+  student_sid  text not null,                          -- students.id for accounts, the device pass id otherwise
+  student_name text,
+  lang         text not null default 'en',
+  joined_at    timestamptz not null default now(),
+  primary key (class_id, student_sid)
+);
+alter table public.attendance enable row level security;  -- server only
+
+-- Spaced revision: 3 questions the day after class, again 3 days later, then a week later.
+create table if not exists public.revisions (
+  id          bigserial primary key,
+  student_sid text not null,
+  lecture_id  uuid not null references public.lectures(id) on delete cascade,
+  lang        text not null default 'en',
+  step        int  not null default 1,                 -- 1 = next day, 2 = +3 days, 3 = +7 days
+  due_at      timestamptz not null,
+  questions   jsonb,                                   -- filled when first opened
+  answers     jsonb,
+  score       int,
+  total       int,
+  notified_at timestamptz,
+  done_at     timestamptz,
+  created_at  timestamptz not null default now(),
+  unique (student_sid, lecture_id, step)
+);
+create index if not exists revisions_due on public.revisions(student_sid, due_at) where done_at is null;
+alter table public.revisions enable row level security;  -- server only
+
+-- Browser push subscriptions for revision reminders (Web Push, VAPID keys in the env).
+create table if not exists public.push_subscriptions (
+  endpoint     text primary key,
+  student_sid  text not null,
+  subscription jsonb not null,
+  lang         text not null default 'en',
+  created_at   timestamptz not null default now()
+);
+create index if not exists push_subscriptions_student on public.push_subscriptions(student_sid);
+alter table public.push_subscriptions enable row level security;  -- server only
+
+-- Cached teacher report and revision question pools per language.
+alter table public.lectures add column if not exists insights jsonb;
+alter table public.lectures add column if not exists revision_sets jsonb not null default '{}'::jsonb;
+
 -- Make the API see the new tables/columns right away.
 notify pgrst, 'reload schema';

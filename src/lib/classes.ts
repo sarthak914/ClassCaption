@@ -133,10 +133,10 @@ export function classTargets(cls: ClassRow) {
   return [...new Set([...(cls.languages ?? []), "hi", "en"])].filter((l) => l !== src || sourceIsMixed(cls.source_lang));
 }
 
-/** Translate teacher-side texts into every language students are reading. Never throws. */
-export async function translateForClass(cls: ClassRow, texts: string[], source?: string): Promise<Record<string, string[]>> {
+/** Translate teacher-side texts into every language students are reading (plus `extra`). Never throws. */
+export async function translateForClass(cls: ClassRow, texts: string[], source?: string, extra: string[] = []): Promise<Record<string, string[]>> {
   const src = source ?? baseLang(cls.source_lang);
-  const targets = classTargets(cls).filter((l) => l !== src);
+  const targets = [...new Set([...classTargets(cls), ...extra])].filter((l) => l && l !== src);
   if (!texts.length || !targets.length) return {};
   try {
     return (await translate(texts, targets, src, { keepSource: sourceIsMixed(cls.source_lang), glossary: glossaryTerms(cls.classroom?.glossary) })).result;
@@ -146,7 +146,7 @@ export async function translateForClass(cls: ClassRow, texts: string[], source?:
   }
 }
 
-export type EventKind = "announcement" | "board" | "ended";
+export type EventKind = "announcement" | "board" | "ended" | "answer";
 
 /** Server-written live events; students receive them over Realtime (table class_events). */
 export async function addEvent(classId: string, kind: EventKind, payload: Record<string, unknown>) {
@@ -160,11 +160,15 @@ export async function latestEvents(classId: string) {
     .from("class_events")
     .select("*")
     .eq("class_id", classId)
-    .in("kind", ["announcement", "board"])
+    .in("kind", ["announcement", "board", "answer"])
     .order("created_at", { ascending: false })
-    .limit(10);
+    .limit(30);
   const rows = data ?? [];
-  return { announcement: rows.find((r) => r.kind === "announcement") ?? null, board: rows.find((r) => r.kind === "board") ?? null };
+  return {
+    announcement: rows.find((r) => r.kind === "announcement") ?? null,
+    board: rows.find((r) => r.kind === "board") ?? null,
+    answers: rows.filter((r) => r.kind === "answer").slice(0, 10),
+  };
 }
 
 /** What a student may see of a class: no PINs or owner ids. */

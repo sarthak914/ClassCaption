@@ -10,13 +10,12 @@ import { api, isUuid, needsAuth, speak } from "@/lib/client/api";
 import { JoinQrCard, JoinQrModal } from "@/components/join/JoinQrModal";
 import { PhraseRecorder } from "@/lib/client/phraseRecorder";
 import { useWakeLock } from "@/lib/client/wakeLock";
+import { QuestionCard, type QuestionItem } from "@/components/live/QuestionCard";
 import {
   Mic,
   MicOff,
   Users,
   Clock,
-  Volume2,
-  Check,
   Scan,
   Share2,
   Megaphone,
@@ -25,18 +24,6 @@ import {
   Send,
   Sun,
 } from "lucide-react";
-
-interface QuestionItem {
-  id: string;
-  studentName: string;
-  seat?: string;
-  kind: "question" | "speak";
-  text: string;
-  timeAgo: string;
-  createdAt: number;
-  upvotes?: number;
-  resolved: boolean;
-}
 
 type ClassInfo = {
   id: string;
@@ -57,7 +44,9 @@ type Reaction = {
   kind: "lost" | "question" | "speak";
   text: string | null;
   text_en: string | null;
+  lang: string | null;
   student_name: string | null;
+  answer?: string | null;
   created_at: string;
 };
 
@@ -75,6 +64,8 @@ function toQuestion(r: Reaction): QuestionItem {
     studentName: r.student_name || "Anonymous Student",
     kind: r.kind === "speak" ? "speak" : "question",
     text: r.text_en || r.text || "",
+    original: r.text && r.text_en && r.text.trim() !== r.text_en.trim() && r.lang ? { text: r.text, lang: r.lang } : undefined,
+    answer: r.answer ?? undefined,
     timeAgo: ago(createdAt),
     createdAt,
     upvotes: 0,
@@ -797,7 +788,7 @@ function TeacherLiveClassroomContent({
               <div className="flex items-end justify-between gap-2">
                 <div>
                   <h2 className="text-2xl font-normal">Questions</h2>
-                  <p className="text-sm text-ink-3">Typed questions and Speak for Me requests from students</p>
+                  <p className="text-sm text-ink-3">Asked in any language, shown in yours. Answers go back in the student&apos;s language.</p>
                 </div>
                 <span className="font-mono text-sm text-ink-2">{unresolvedCount} open</span>
               </div>
@@ -820,51 +811,18 @@ function TeacherLiveClassroomContent({
                   No questions yet. Student questions and Speak for Me requests appear here instantly.
                 </p>
               )}
-              {questions.map((q) => {
-                if (q.resolved) return null;
-
-                return (
-                  <div key={q.id} className={`cc-card p-5 ${q.kind === "speak" ? "!border-neel-line border-l-4 !border-l-neel" : ""}`}>
-                    <div className="flex items-center justify-between mb-3 gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-full bg-paper-2 border border-rule-strong text-ink flex items-center justify-center font-heading text-sm flex-shrink-0">
-                          {q.studentName.slice(0, 1).toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <span className="font-semibold text-sm text-ink block truncate">{q.studentName}</span>
-                          <span className="text-[11px] text-ink-3">
-                            {q.seat ? `${q.seat} · ` : ""}
-                            {q.timeAgo}
-                          </span>
-                        </div>
-                      </div>
-
-                      {q.kind === "speak" ? (
-                        <span className="cc-stamp text-neel">
-                          <Volume2 className="w-3 h-3" />
-                          Speak for me
-                        </span>
-                      ) : (
-                        <span className="cc-stamp text-ink-3">Question</span>
-                      )}
-                    </div>
-
-                    <p className="font-heading text-xl leading-snug mb-4">&ldquo;{q.text}&rdquo;</p>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button onClick={() => playTTSAloud(q.text)} className="cc-btn cc-btn-primary h-10 px-4 text-xs">
-                        <Volume2 className="w-4 h-4" />
-                        <span>Play on classroom speakers</span>
-                      </button>
-
-                      <button onClick={() => markQuestionResolved(q.id)} className="cc-btn h-10 px-4 text-xs">
-                        <Check className="w-4 h-4 text-patta" />
-                        <span>Mark resolved</span>
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+              {questions.map((q) =>
+                q.resolved ? null : (
+                  <QuestionCard
+                    key={q.id}
+                    q={q}
+                    classId={cls.id}
+                    onPlay={playTTSAloud}
+                    onResolve={() => markQuestionResolved(q.id)}
+                    onAnswered={(answer) => setQuestions((prev) => prev.map((x) => (x.id === q.id ? { ...x, answer } : x)))}
+                  />
+                ),
+              )}
             </section>
           </div>
 
