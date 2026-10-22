@@ -64,7 +64,8 @@ docker run -p 3000:3000 --env-file .env.local sarthak914/classcaption
   pip install -r requirements.txt     # torch, transformers, IndicTransToolkit
   python server.py                    # http://localhost:7860, downloads ~1 GB of models on first start
   ```
-  Or with Docker: `docker compose --profile indictrans2 up --build -d`. Then set `INDICTRANS2_URL=http://localhost:7860` (`http://indictrans2:7860` inside compose) and add `indictrans2` to `TRANSLATION_PROVIDERS`, e.g. `indictrans2,groq,gemini,google`. The distilled 200M models are used by default (laptop CPU); set `INDICTRANS2_SIZE=1B` on a GPU. IndicTrans2 translates clean English or Indic text very well, but it does not fix Hinglish or speech-recognition mistakes the way the LLMs do, so for Hinglish lectures keep `groq` first and use IndicTrans2 for recorded-lecture subtitles or as the fallback.
+  Or with Docker: `docker compose --profile indictrans2 up --build -d`. Then set `INDICTRANS2_URL=http://localhost:7860` (`http://indictrans2:7860` inside compose). The distilled 200M models are used by default (laptop CPU); set `INDICTRANS2_SIZE=1B` on a GPU.
+  - **Automatic routing:** once `INDICTRANS2_URL` is set, every English caption is checked (`src/lib/translate/hinglish.ts`). **Pure English goes to IndicTrans2**, and **Hinglish** (romanised Hindi words like "hai", "kya", "mein", or any Devanagari) **goes to Groq** and the rest of `TRANSLATION_PROVIDERS`, because the LLMs fix Hinglish and speech mistakes and IndicTrans2 doesn't. If IndicTrans2 fails, the chain carries on as usual. Set `INDICTRANS2_ROUTING=off` to use `TRANSLATION_PROVIDERS` exactly as written.
 
 ## Ask the lecture (RAG)
 
