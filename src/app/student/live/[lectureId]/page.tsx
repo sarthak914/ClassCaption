@@ -9,6 +9,7 @@ import { TermModal } from "@/components/live/TermModal";
 import { SpeakForMeModal } from "@/components/live/SpeakForMeModal";
 import { AskQuestionModal } from "@/components/live/AskQuestionModal";
 import { createClient } from "@/lib/supabase/client";
+import { useWakeLock } from "@/lib/client/wakeLock";
 import { LanguageCode, LANGUAGES } from "@/lib/languages";
 import { api, isUuid, needsAuth, pref, setPref, sourceLabel, speak as speakAloud, techTerms } from "@/lib/client/api";
 import {
@@ -98,6 +99,8 @@ function StudentLiveLectureContent({
   const [board, setBoard] = useState<Board | null>(null);
   const [studentName, setStudentName] = useState("");
   const [needJoin, setNeedJoin] = useState(false);
+  // Keep the phone screen on while captions are coming in.
+  useWakeLock(!!cls && isLive);
 
   // Live Captions Feed State
   const [captions, setCaptions] = useState<LiveCaptionEvent[]>([]);

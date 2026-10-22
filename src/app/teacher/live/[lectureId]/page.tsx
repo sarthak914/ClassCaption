@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { api, isUuid, needsAuth, speak } from "@/lib/client/api";
 import { JoinQrModal } from "@/components/join/JoinQrModal";
 import { PhraseRecorder } from "@/lib/client/phraseRecorder";
+import { useWakeLock } from "@/lib/client/wakeLock";
 import {
   Mic,
   MicOff,
@@ -27,6 +28,9 @@ import {
   Play,
   Layers,
   ShieldAlert,
+  Keyboard,
+  Send,
+  Sun,
 } from "lucide-react";
 
 interface QuestionItem {
@@ -112,6 +116,8 @@ function TeacherLiveClassroomContent({
   const [ttsQueue, setTtsQueue] = useState(0);
   const [streamed, setStreamed] = useState(0);
   const [showQr, setShowQr] = useState(false);
+  const [typedCaption, setTypedCaption] = useState("");
+  const screenAwake = useWakeLock(!!cls);
 
   // Board capture
   const [scanning, setScanning] = useState(false);
@@ -243,15 +249,15 @@ function TeacherLiveClassroomContent({
     });
   };
 
-  /** Browser speech path (fallback): text recognised by Chrome. */
-  const sendCaption = async (text: string) => {
+  /** Browser speech path (fallback): text recognised by Chrome. Also used for captions the teacher types. */
+  const sendCaption = async (text: string, via = "Chrome speech") => {
     const c = clsRef.current;
     if (!c || endedRef.current) return;
     try {
       const data = await api<CaptionResponse>("/api/captions", {
         json: { classId: c.id, text, seq: seqRef.current++, targets: captionTargets(), context: recentRef.current },
       });
-      applyCaption(data, "Chrome speech");
+      applyCaption(data, via);
     } catch (err) {
       setSent((p) => ({ ...p, total: p.total + 1 }));
       setCaptionError((err as Error).message);
@@ -715,6 +721,12 @@ function TeacherLiveClassroomContent({
                   : "Starting Mic..."}
               </span>
             </div>
+            {screenAwake && (
+              <div className="h-10 px-3.5 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] flex items-center gap-2 text-xs font-bold text-[#475569]" title="This screen won't sleep during the class">
+                <Sun className="w-4 h-4 text-[#D97706]" />
+                <span>Screen stays on</span>
+              </div>
+            )}
           </div>
         </section>
 
@@ -802,6 +814,36 @@ function TeacherLiveClassroomContent({
               &ldquo;{teacherAudio}&rdquo;
             </p>
           </div>
+
+          {/* Typed captions: for a noisy room, a failed mic, or a formula/term the mic can't catch */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const text = typedCaption.trim();
+              if (!text) return;
+              setTypedCaption("");
+              enqueue(() => sendCaption(text, "Typed"));
+            }}
+            className="flex gap-2"
+          >
+            <label htmlFor="typed-caption" className="sr-only">Type a caption</label>
+            <div className="flex-1 flex items-center gap-2 h-11 px-3 rounded-xl border-2 border-[#CBD5E1] focus-within:border-[#1E3A8A] bg-white">
+              <Keyboard className="w-4 h-4 text-[#64748B] flex-shrink-0" />
+              <input
+                id="typed-caption"
+                value={typedCaption}
+                onChange={(e) => setTypedCaption(e.target.value)}
+                maxLength={500}
+                autoComplete="off"
+                placeholder="Type a caption and press Enter (sent and translated like speech)"
+                className="flex-1 min-w-0 text-sm outline-none bg-transparent placeholder:text-[#94A3B8]"
+              />
+            </div>
+            <button type="submit" disabled={!typedCaption.trim()} className="h-11 px-4 rounded-xl bg-[#1E3A8A] hover:bg-[#00236F] text-white font-bold text-xs flex items-center gap-1.5 disabled:opacity-50">
+              <Send className="w-4 h-4" />
+              Send
+            </button>
+          </form>
 
           {/* 4 Multilingual Stream Cards matching Stitch */}
           <div className="space-y-3">

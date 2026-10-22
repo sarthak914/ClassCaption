@@ -22,7 +22,8 @@ function JoinContent() {
   useEffect(() => {
     setName(pref("name", ""));
     setLang(pref("lang", "hi"));
-    setCanScan(typeof window !== "undefined" && "BarcodeDetector" in window && !!navigator.mediaDevices?.getUserMedia);
+    // Any browser with camera access (https or localhost). Phones on http://<laptop IP> use their own camera app instead.
+    setCanScan(typeof window !== "undefined" && !!navigator.mediaDevices?.getUserMedia);
   }, []);
 
   const join = async (e?: React.FormEvent) => {
@@ -149,7 +150,36 @@ function JoinContent() {
   );
 }
 
-/** Camera QR reader using the browser's BarcodeDetector (Chrome on Android). */
+type Detect = (v: HTMLVideoElement) => Promise<string | null>;
+
+/** The browser's own QR reader (Chrome/Edge on Android, desktop) or jsQR on a canvas (iPhone Safari, Firefox). */
+async function makeDetector(): Promise<Detect> {
+  if ("BarcodeDetector" in window) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const BD = (window as any).BarcodeDetector;
+      if ((await BD.getSupportedFormats?.())?.includes?.("qr_code") ?? true) {
+        const detector = new BD({ formats: ["qr_code"] });
+        return async (v) => (await detector.detect(v))[0]?.rawValue ?? null;
+      }
+    } catch {}
+  }
+  const { default: jsQR } = await import("jsqr");
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  return async (v) => {
+    if (!ctx || !v.videoWidth) return null;
+    // Downscale big camera frames: faster, and QR codes on a projector are large anyway.
+    const scale = Math.min(1, 640 / Math.max(v.videoWidth, v.videoHeight));
+    canvas.width = Math.round(v.videoWidth * scale);
+    canvas.height = Math.round(v.videoHeight * scale);
+    ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    return jsQR(img.data, img.width, img.height, { inversionAttempts: "dontInvert" })?.data ?? null;
+  };
+}
+
+/** Camera QR reader. */
 function QrScanner({ onCode, onClose }: { onCode: (text: string) => void; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const onCodeRef = useRef(onCode);
@@ -167,18 +197,22 @@ function QrScanner({ onCode, onClose }: { onCode: (text: string) => void; onClos
         if (!v) return;
         v.srcObject = stream;
         await v.play();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const detector = new (window as any).BarcodeDetector({ formats: ["qr_code"] });
+        const detect = await makeDetector();
+        let busy = false;
         timer = setInterval(async () => {
-          if (done || v.readyState < 2) return;
+          if (done || busy || v.readyState < 2) return;
+          busy = true;
           try {
-            const codes = await detector.detect(v);
-            if (codes[0]?.rawValue) {
+            const text = await detect(v);
+            if (text && !done) {
               done = true;
-              onCodeRef.current(codes[0].rawValue);
+              onCodeRef.current(text);
             }
-          } catch {}
-        }, 300);
+          } catch {
+          } finally {
+            busy = false;
+          }
+        }, 250);
       } catch (err) {
         setError((err as Error).name === "NotAllowedError" ? "Camera permission was denied. Type the PIN instead." : "Camera unavailable here. Type the PIN instead.");
       }
