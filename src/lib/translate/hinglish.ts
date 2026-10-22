@@ -24,5 +24,10 @@ export function isHinglish(text: string): boolean {
   return words.some((w) => HINDI_WORDS.has(w));
 }
 
-/** True only when every text is plain English. */
-export const allPureEnglish = (texts: string[]) => texts.every((t) => !isHinglish(t));
+/** True only when every text is plain English prose (no Hinglish, no formulas or code). */
+export const allPureEnglish = (texts: string[]) => texts.every((t) => !isHinglish(t) && !hasMath(t));
+
+/** Formulas, code and symbols ("O(n log n)", "x^2 + 1", "a[i] = b"): IndicTrans2 mangles them, the LLMs keep them as-is. */
+export function hasMath(text: string): boolean {
+  return /[=^+*/<>\[\]{}()_\\|~]|\d[a-z]|[a-z]\d|\b[a-z]\s*\(/i.test(text);
+}

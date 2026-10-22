@@ -68,7 +68,7 @@ docker run -p 3000:3000 --env-file .env.local sarthak914/classcaption
   - **Restarting:** once the models are downloaded, start with `HF_HUB_OFFLINE=1` (PowerShell: `$env:HF_HUB_OFFLINE='1'; python server.py`) so startup never touches the network.
 
   Or with Docker: `docker compose --profile indictrans2 up --build -d`. Then set `INDICTRANS2_URL=http://localhost:7860` (`http://indictrans2:7860` inside compose). The distilled 200M models are used by default (laptop CPU); set `INDICTRANS2_SIZE=1B` on a GPU.
-  - **Automatic routing:** once `INDICTRANS2_URL` is set, every English caption is checked (`src/lib/translate/hinglish.ts`). **Pure English goes to IndicTrans2**, and **Hinglish** (romanised Hindi words like "hai", "kya", "mein", or any Devanagari) **goes to Groq** and the rest of `TRANSLATION_PROVIDERS`, because the LLMs fix Hinglish and speech mistakes and IndicTrans2 doesn't. If IndicTrans2 fails, the chain carries on as usual. Set `INDICTRANS2_ROUTING=off` to use `TRANSLATION_PROVIDERS` exactly as written.
+  - **Automatic routing:** once `INDICTRANS2_URL` is set, every English caption is checked (`src/lib/translate/hinglish.ts`). **Pure English goes to IndicTrans2**, and **Hinglish** (romanised Hindi words like "hai", "kya", "mein", or any Devanagari) and lines with formulas or code (`O(n log n)`, `x^2`, `a[i]`) **go to Groq** and the rest of `TRANSLATION_PROVIDERS`, because the LLMs fix Hinglish and speech mistakes and IndicTrans2 doesn't. If IndicTrans2 fails, the chain carries on as usual. Set `INDICTRANS2_ROUTING=off` to use `TRANSLATION_PROVIDERS` exactly as written.
 
 ## Ask the lecture (RAG)
 
