@@ -7,7 +7,7 @@ import { PaceGauge } from "@/components/live/PaceGauge";
 import { ConfusionMeter } from "@/components/live/ConfusionMeter";
 import { createClient } from "@/lib/supabase/client";
 import { api, isUuid, needsAuth, speak } from "@/lib/client/api";
-import { JoinQrModal } from "@/components/join/JoinQrModal";
+import { JoinQrCard, JoinQrModal } from "@/components/join/JoinQrModal";
 import { PhraseRecorder } from "@/lib/client/phraseRecorder";
 import { useWakeLock } from "@/lib/client/wakeLock";
 import {
@@ -870,6 +870,9 @@ function TeacherLiveClassroomContent({
 
           {/* Right: controls and how the class is doing */}
           <aside className="space-y-5 min-w-0">
+            {/* Join QR and PIN, always on screen so late students can scan it */}
+            {cls.classroom && <JoinQrCard pin={cls.classroom.join_code} onExpand={() => setShowQr(true)} />}
+
             {/* 4. Quick actions */}
             <section className="grid grid-cols-3 gap-2.5">
               <button
