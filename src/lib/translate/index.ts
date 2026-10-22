@@ -4,6 +4,7 @@ import { groqJSON } from "../ai/groq";
 import { langName } from "../languages";
 import { bhashiniTranslate } from "./bhashini";
 import { indicTrans2Translate } from "./indictrans2";
+import { allPureEnglish } from "./hinglish";
 
 /**
  * A translator turns N source texts into N texts for each target language.
@@ -113,12 +114,22 @@ const indictrans2: Translator = {
 
 const ALL: Record<string, Translator> = { bhashini, indictrans2, gemini, groq, google };
 
-function chain(): Translator[] {
+/**
+ * With an IndicTrans2 server running, English source text is routed by what it actually is:
+ * pure English goes to IndicTrans2 first, Hinglish skips it (an LLM fixes and understands Hinglish).
+ * Other source languages keep the configured order. INDICTRANS2_ROUTING=off keeps the order as written.
+ */
+function chain(texts: string[], source: string): Translator[] {
   const order = (process.env.TRANSLATION_PROVIDERS || "bhashini,groq,gemini,google")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  return order.map((n) => ALL[n]).filter((t): t is Translator => !!t && t.available());
+  let list = order.map((n) => ALL[n]).filter((t): t is Translator => !!t && t.available());
+  if (indictrans2.available() && source === "en" && process.env.INDICTRANS2_ROUTING !== "off") {
+    list = list.filter((t) => t !== indictrans2);
+    if (allPureEnglish(texts)) list.unshift(indictrans2);
+  }
+  return list;
 }
 
 /** Translate with automatic fallback through the provider chain. */
@@ -132,7 +143,7 @@ export async function translate(
   const tgts = [...new Set(targets)].filter((t) => t && (opts.keepSource || t !== source));
   if (!texts.length || !tgts.length) return { provider: "none", result: {} };
   const errors: string[] = [];
-  for (const t of chain()) {
+  for (const t of chain(texts, source)) {
     try {
       return { provider: t.name, result: await t.translate(texts, tgts, source, { previous: opts.previous, glossary: opts.glossary }) };
     } catch (e) {

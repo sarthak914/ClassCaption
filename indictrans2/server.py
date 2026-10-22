@@ -13,8 +13,10 @@ Uses the distilled 200M models by default (fast enough on a laptop CPU). Set IND
 Indic -> Indic goes through English (two hops), so only two models are ever loaded.
 """
 import os
+import re
 import threading
 import time
+import unicodedata
 
 import torch
 from fastapi import FastAPI, Header, HTTPException
@@ -23,8 +25,11 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 try:
     from IndicTransToolkit.processor import IndicProcessor
-except ImportError:  # older IndicTransToolkit releases
-    from IndicTransToolkit import IndicProcessor
+except ImportError:
+    try:  # older IndicTransToolkit releases
+        from IndicTransToolkit import IndicProcessor
+    except ImportError:
+        IndicProcessor = None  # not installed (it needs a C++ compiler on Windows): use SimpleProcessor below
 
 # ClassCaption's ISO 639-1 codes -> IndicTrans2 (FLORES) codes.
 CODES = {
@@ -42,7 +47,47 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 BEAMS = int(os.environ.get("INDICTRANS2_BEAMS", "1"))  # 1 = fastest; 4-5 = a little better, slower
 API_KEY = os.environ.get("INDICTRANS2_API_KEY", "")
 
-processor = IndicProcessor(inference=True)
+class SimpleProcessor:
+    """Minimal stand-in for IndicTransToolkit: the language tags the model expects, plus light cleanup.
+    The toolkit also protects URLs/numbers and normalises Indic punctuation, so it is a little better when available.
+
+    The models read and write every Brahmic-script language in Devanagari, so text is moved between
+    Devanagari and the language's own script. The Unicode blocks share one layout, so it is a fixed offset."""
+
+    BLOCKS = {"Beng": 0x0980, "Guru": 0x0A00, "Gujr": 0x0A80, "Orya": 0x0B00, "Taml": 0x0B80,
+              "Telu": 0x0C00, "Knda": 0x0C80, "Mlym": 0x0D00}
+    SHARED = {0x64, 0x65}  # danda and double danda are used as-is by every script
+
+    @staticmethod
+    def _shift(s, base_from, base_to):
+        out = []
+        for c in s:
+            off = ord(c) - base_from
+            if 0 <= off < 0x80 and off not in SimpleProcessor.SHARED:
+                mapped = chr(base_to + off)
+                if unicodedata.name(mapped, ""):  # skip letters the target script doesn't have
+                    c = mapped
+            out.append(c)
+        return "".join(out)
+
+    def preprocess_batch(self, sents, src_lang, tgt_lang):
+        base = self.BLOCKS.get(src_lang.split("_")[1])
+        sents = [self._shift(s, base, 0x0900) if base else s for s in sents]
+        return [f"{src_lang} {tgt_lang} " + re.sub(r"\s+", " ", s).strip() for s in sents]
+
+    def postprocess_batch(self, sents, lang):
+        base = self.BLOCKS.get(lang.split("_")[1])
+        out = []
+        for s in sents:
+            s = re.sub(r"\s+", " ", s).strip()
+            s = re.sub(r"\s+([,.!?;:।)])", r"\1", s)  # no space before punctuation
+            if base:
+                s = self._shift(s, 0x0900, base)
+            out.append(s)
+        return out
+
+
+processor = IndicProcessor(inference=True) if IndicProcessor else SimpleProcessor()
 loaded: dict = {}
 lock = threading.Lock()
 
@@ -91,7 +136,14 @@ app = FastAPI(title="ClassCaption IndicTrans2")
 
 @app.get("/health")
 def health():
-    return {"ok": True, "device": DEVICE, "size": SIZE, "loaded": sorted(loaded), "languages": sorted(CODES)}
+    return {
+        "ok": True,
+        "device": DEVICE,
+        "size": SIZE,
+        "loaded": sorted(loaded),
+        "processor": "IndicTransToolkit" if IndicProcessor else "simple",
+        "languages": sorted(CODES),
+    }
 
 
 @app.post("/translate")
