@@ -9,3 +9,17 @@ services:
       - "3000:3000"
     env_file: .env.local
     restart: unless-stopped
+
+  # Optional open-source translator (AI4Bharat IndicTrans2), CPU:  docker compose --profile indictrans2 up --build -d
+  # then set INDICTRANS2_URL=http://indictrans2:7860 in .env.local and put indictrans2 in TRANSLATION_PROVIDERS.
+  indictrans2:
+    profiles: ["indictrans2"]
+    build: ./indictrans2
+    ports:
+      - "7860:7860"
+    volumes:
+      - hf-cache:/root/.cache/huggingface
+    restart: unless-stopped
+
+volumes:
+  hf-cache:

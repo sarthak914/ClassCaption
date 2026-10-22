@@ -3,11 +3,12 @@ import { geminiJSON } from "../ai/gemini";
 import { groqJSON } from "../ai/groq";
 import { langName } from "../languages";
 import { bhashiniTranslate } from "./bhashini";
+import { indicTrans2Translate } from "./indictrans2";
 
 /**
  * A translator turns N source texts into N texts for each target language.
  * Result: { hi: [..N], ta: [..N] }.
- * Swap or reorder providers with TRANSLATION_PROVIDERS (e.g. "bhashini,gemini,google").
+ * Swap or reorder providers with TRANSLATION_PROVIDERS (e.g. "bhashini,indictrans2,gemini,google").
  */
 export interface Translator {
   name: string;
@@ -103,7 +104,14 @@ const bhashini: Translator = {
   },
 };
 
-const ALL: Record<string, Translator> = { bhashini, gemini, groq, google };
+/** Self-hosted AI4Bharat IndicTrans2 (indictrans2/server.py). Best for clean English or Indic text; the LLMs handle Hinglish better. */
+const indictrans2: Translator = {
+  name: "indictrans2",
+  available: () => !!process.env.INDICTRANS2_URL,
+  translate: (texts, targets, source) => indicTrans2Translate(texts, source, targets),
+};
+
+const ALL: Record<string, Translator> = { bhashini, indictrans2, gemini, groq, google };
 
 function chain(): Translator[] {
   const order = (process.env.TRANSLATION_PROVIDERS || "bhashini,groq,gemini,google")

@@ -2,7 +2,7 @@
 
 API for **ClassCaption**, an AI classroom companion with live translated captions, an "I'm lost" confusion meter, a pace coach, and recorded lectures with subtitles, notes, a quiz and Ask-the-lecture, in Indian languages.
 
-- **Stack:** Next.js API routes (Vercel), ffmpeg (video to audio), Supabase (Postgres, Realtime, Storage), Groq Whisper large-v3, Gemini Flash. Translation goes through a provider chain (Bhashini → Groq → Gemini → Google fallback).
+- **Stack:** Next.js API routes (Vercel), ffmpeg (video to audio), Supabase (Postgres, Realtime, Storage), Groq Whisper large-v3, Gemini Flash. Translation goes through a provider chain (Bhashini → IndicTrans2 → Groq → Gemini → Google fallback). Ask-the-lecture uses Gemini embeddings + pgvector.
 - **Endpoint reference for the frontend:** [`API_CONTRACT.md`](API_CONTRACT.md)
 
 ## Setup (about 10 minutes)
@@ -55,13 +55,34 @@ docker run -p 3000:3000 --env-file .env.local sarthak914/classcaption
 
 ## Translation providers
 
-`TRANSLATION_PROVIDERS` sets the order (default `bhashini,groq,gemini,google`: Groq is fastest for live captions). A provider is skipped when its keys are missing, and each one falls back to the next on error or timeout, so captions keep flowing even if a free-tier rate limit is hit. When the Bhashini keys arrive, set `BHASHINI_USER_ID` and `BHASHINI_API_KEY` and it becomes the first choice automatically. The code is in `src/lib/translate/`.
+`TRANSLATION_PROVIDERS` sets the order (code default `bhashini,groq,gemini,google`; `.env.example` uses `groq,gemini,google`). A provider is skipped when its keys are missing, and each one falls back to the next on error or timeout, so captions keep flowing even if a free-tier rate limit is hit. The code is in `src/lib/translate/`.
+
+- **Bhashini** (MeitY): set `BHASHINI_USER_ID` and `BHASHINI_API_KEY` (from bhashini.gov.in → ULCA profile) and make sure `bhashini` is in `TRANSLATION_PROVIDERS`. Check the keys with `node --env-file=.env.local scripts/check-env.mjs`, which does a real English → Hindi translation.
+- **IndicTrans2** (AI4Bharat, open source, no API key): runs on your own machine from [`indictrans2/`](indictrans2/server.py).
+  ```bash
+  cd indictrans2
+  pip install -r requirements.txt     # torch, transformers, IndicTransToolkit
+  python server.py                    # http://localhost:7860, downloads ~1 GB of models on first start
+  ```
+  Or with Docker: `docker compose --profile indictrans2 up --build -d`. Then set `INDICTRANS2_URL=http://localhost:7860` (`http://indictrans2:7860` inside compose) and add `indictrans2` to `TRANSLATION_PROVIDERS`, e.g. `indictrans2,groq,gemini,google`. The distilled 200M models are used by default (laptop CPU); set `INDICTRANS2_SIZE=1B` on a GPU. IndicTrans2 translates clean English or Indic text very well, but it does not fix Hinglish or speech-recognition mistakes the way the LLMs do, so for Hinglish lectures keep `groq` first and use IndicTrans2 for recorded-lecture subtitles or as the fallback.
+
+## Ask the lecture (RAG)
+
+Questions on a recorded lecture are answered with retrieval: the transcript is split into passages of a few lines, embedded with Gemini (`gemini-embedding-001`, 768 dimensions, multilingual so a Hindi question finds English lines) and stored in pgvector (`segment_chunks`) the first time someone asks. Each question is embedded, `match_segment_chunks()` returns the 6 closest passages, and only those lines go to the LLM, which cites timestamps. Run the **v5** part of `supabase/schema.sql` to enable it; without it (or with `ASK_RETRIEVAL=off`) the whole transcript is sent as before. Each answer says which method was used, and `/api/health` shows `ask_retrieval`.
+
+## In class
+
+- **Screen stays on:** the teacher and student live pages hold a screen wake lock. Over plain `http://<laptop IP>` phones don't offer the Wake Lock API, so a tiny muted video keeps the screen on instead; it starts on the first tap.
+- **Typed captions:** the teacher can type a line under "Teacher audio" (noisy room, mic trouble, a formula). It is translated and sent to every student like speech.
+- **QR join:** phones scan the projector QR with their own camera app. The in-page scanner on `/join` works on Chrome/Edge (BarcodeDetector) and on iPhone Safari and Firefox (jsQR), wherever the page is on https or localhost.
 
 ## Layout
 
 ```
 supabase/schema.sql          tables, RLS, realtime, storage bucket
-src/lib/translate/           swappable translators (bhashini.ts, index.ts)
+src/lib/translate/           swappable translators (bhashini.ts, indictrans2.ts, index.ts)
+src/lib/rag.ts               Ask the lecture: chunking, pgvector search
+indictrans2/server.py        self-hosted IndicTrans2 translation server
 src/lib/ai/                  gemini.ts, groq.ts, lecture.ts (notes, ask, explain prompts)
 src/lib/classes.ts           live class helpers
 src/lib/lectures.ts          recorded pipeline, live→lecture, subtitles

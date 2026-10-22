@@ -13,6 +13,7 @@ export async function GET() {
     gemini: !!process.env.GEMINI_API_KEY,
     groq: !!process.env.GROQ_API_KEY,
     bhashini: !!(process.env.BHASHINI_USER_ID && process.env.BHASHINI_API_KEY),
+    indictrans2: !!process.env.INDICTRANS2_URL,
   };
   let database: string = "not checked";
   let askRetrieval = "full transcript (no GEMINI_API_KEY)";
