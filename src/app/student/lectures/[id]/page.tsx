@@ -9,6 +9,7 @@ import { BottomNav } from "@/components/navigation/BottomNav";
 import { api, isUuid, mmss, needsAuth, pref, speak } from "@/lib/client/api";
 import { PACE_LABEL, paceOf } from "@/lib/pace";
 import { LANGUAGES } from "@/lib/languages";
+import { RemindMeButton } from "@/components/revision/RemindMeButton";
 import {
   Play,
   Pause,
@@ -414,6 +415,11 @@ function RecordedLectureContent({
               <Download className="w-3.5 h-3.5 text-neel" />
               <span>Transcript (TXT)</span>
             </button>
+            {role === "teacher" && (
+              <Link href={`/teacher/insights/${lecture.id}`} className="cc-btn cc-btn-primary h-8 px-3 text-xs ml-auto">
+                Class report
+              </Link>
+            )}
           </div>
         </section>
 
@@ -865,6 +871,8 @@ function RecordedLectureContent({
                   </button>
                 )}
               </div>
+
+              {role === "student" && ready && <RemindMeButton lectureId={lecture.id} lang={selectedCaptionLang} />}
 
               {!!conceptNotes?.practice_questions?.length && (
                 <div className="cc-card p-6 space-y-3">

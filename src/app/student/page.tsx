@@ -7,6 +7,7 @@ import { Navbar } from "@/components/navigation/Navbar";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { api, pref, setPref, sourceLabel } from "@/lib/client/api";
 import { LANGUAGES } from "@/lib/languages";
+import { RevisionCard } from "@/components/revision/RevisionCard";
 import { Sparkles, Volume2, QrCode, HelpCircle, ArrowRight, BookOpen, LogOut, ShieldCheck, Video, Search, FileText, ListChecks, MessageCircleQuestion, UserPlus } from "lucide-react";
 
 type Room = {
@@ -179,6 +180,9 @@ export default function StudentHomePage() {
             {latencyMs === null ? "Connecting..." : `Connected · ${latencyMs} ms`}
           </p>
         </section>
+
+        {/* Spaced revision: questions from yesterday's class, when due */}
+        <RevisionCard lang={lang} />
 
         {/* 2. Live right now */}
         {live ? (
