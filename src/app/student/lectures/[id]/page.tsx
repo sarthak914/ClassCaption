@@ -301,7 +301,12 @@ function RecordedLectureContent({
   };
 
   const shareLecture = async () => {
-    const url = window.location.href;
+    let url = window.location.href;
+    // A teacher on http://localhost would share a link phones can't open: use this computer's Wi-Fi address.
+    if (["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname)) {
+      const base = await api<{ base: string }>("/api/join-url").then((d) => d.base).catch(() => "");
+      if (base) url = base + window.location.pathname + window.location.search;
+    }
     try {
       if (navigator.share) await navigator.share({ title: lecture?.title, url });
       else {
