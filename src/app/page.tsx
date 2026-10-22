@@ -115,12 +115,20 @@ export default function LandingLauncherPage() {
                 <span>Join a Class with PIN or QR</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
-              <Link
-                href="/student"
-                className="w-full h-11 rounded-2xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#0F172A] font-bold text-xs flex items-center justify-center gap-1.5 transition"
-              >
-                <span>My Classes &amp; Recordings</span>
-              </Link>
+              <div className="grid grid-cols-2 gap-2">
+                <Link
+                  href="/student"
+                  className="h-11 rounded-2xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#0F172A] font-bold text-xs flex items-center justify-center gap-1.5 transition"
+                >
+                  <span>My Lectures</span>
+                </Link>
+                <Link
+                  href="/student/login"
+                  className="h-11 rounded-2xl bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#0F172A] font-bold text-xs flex items-center justify-center gap-1.5 transition"
+                >
+                  <span>Student Sign In</span>
+                </Link>
+              </div>
             </div>
           </div>
 

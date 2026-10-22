@@ -9,6 +9,8 @@ export type Notes = {
   summary: string[];
   key_terms: { term: string; meaning: string }[];
   quiz: { question: string; options: string[]; answer_index: number; explanation: string }[];
+  /** Exam-style short-answer questions with model answers (missing on notes made before this was added). */
+  practice_questions?: { question: string; answer: string }[];
   timeline: { start_s: number; topic: string }[];
 };
 
@@ -33,6 +35,7 @@ Return JSON:
  "summary": ["5-10 bullet points covering the lecture in order"],
  "key_terms": [{"term": "...", "meaning": "one-line simple meaning"}],   // 5-12 terms
  "quiz": [{"question": "...", "options": ["a","b","c","d"], "answer_index": 0, "explanation": "..."}],  // 5 MCQs
+ "practice_questions": [{"question": "...", "answer": "3-5 sentence model answer"}],  // 4-6 exam-style short-answer questions, easy to hard
  "timeline": [{"start_s": 0, "topic": "..."}]   // 3-8 topic changes, start_s taken from the transcript
 }
 

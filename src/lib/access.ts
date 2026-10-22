@@ -20,6 +20,12 @@ export async function viewerOf(classroom: { id: string; teacher_id: string | nul
   const [teacher, student] = await Promise.all([getTeacher(), getStudent()]);
   if (classroom && teacher && classroom.teacher_id === teacher.tid) return { role: "teacher", teacher };
   if (classroom && student?.rooms.includes(classroom.id)) return { role: "student", student };
+  // A student account may have joined this classroom on another device.
+  if (classroom && student?.acct) {
+    const { data } = await supabaseAdmin()
+      .from("enrollments").select("classroom_id").eq("student_id", student.sid).eq("classroom_id", classroom.id).maybeSingle();
+    if (data) return { role: "student", student };
+  }
   if (!teacher && !student) throw new HttpError(401, "Join your class with its PIN first");
   throw new HttpError(403, "You have not joined this classroom");
 }
