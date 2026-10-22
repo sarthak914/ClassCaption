@@ -180,5 +180,42 @@ drop policy if exists "public read" on public.segments;
 -- and translation always spell the same way.
 alter table public.classrooms add column if not exists glossary text;
 
+-- ---------------------------------------------------------------------------
+-- v5: student accounts, so a student sees their classrooms and past lectures on any device.
+-- Joining with a PIN still works without an account (a pass on that one device).
+create table if not exists public.students (
+  id            uuid primary key default gen_random_uuid(),
+  name          text not null,
+  email         text not null unique,
+  roll_no       text,
+  password_hash text not null,
+  created_at    timestamptz not null default now()
+);
+alter table public.students enable row level security;  -- no policies: only the server can read it
+
+create table if not exists public.enrollments (
+  student_id   uuid not null references public.students(id) on delete cascade,
+  classroom_id uuid not null references public.classrooms(id) on delete cascade,
+  joined_at    timestamptz not null default now(),
+  primary key (student_id, classroom_id)
+);
+create index if not exists enrollments_classroom on public.enrollments(classroom_id);
+alter table public.enrollments enable row level security;
+
+-- A student's quiz result per lecture (last and best score), shown on their dashboard.
+create table if not exists public.quiz_attempts (
+  student_id uuid not null references public.students(id) on delete cascade,
+  lecture_id uuid not null references public.lectures(id) on delete cascade,
+  lang       text not null default 'en',
+  score      int  not null,
+  total      int  not null,
+  best       int  not null,
+  attempts   int  not null default 1,
+  answers    jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now(),
+  primary key (student_id, lecture_id)
+);
+alter table public.quiz_attempts enable row level security;  -- server only
+
 -- Make the API see the new tables/columns right away.
 notify pgrst, 'reload schema';

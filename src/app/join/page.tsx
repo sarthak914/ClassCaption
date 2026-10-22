@@ -18,9 +18,19 @@ function JoinContent() {
   const [error, setError] = useState("");
   const [scanning, setScanning] = useState(false);
   const [canScan, setCanScan] = useState(false);
+  const [account, setAccount] = useState<string | null>(null);
 
   useEffect(() => {
-    setName(pref("name", ""));
+    // Signed-in student accounts join under their own name.
+    api<{ student: { name: string; account: boolean } | null }>("/api/auth/me")
+      .then((d) => {
+        if (d.student?.account) {
+          setAccount(d.student.name);
+          setName(d.student.name);
+        }
+      })
+      .catch(() => {});
+    setName((n) => n || pref("name", ""));
     setLang(pref("lang", "hi"));
     setCanScan(typeof window !== "undefined" && "BarcodeDetector" in window && !!navigator.mediaDevices?.getUserMedia);
   }, []);
@@ -84,6 +94,7 @@ function JoinContent() {
             <input
               id="name"
               value={name}
+              readOnly={!!account}
               onChange={(e) => setName(e.target.value)}
               required
               minLength={2}
@@ -92,7 +103,9 @@ function JoinContent() {
               placeholder="As your teacher knows you"
               className="w-full h-12 px-4 rounded-xl border-2 border-[#CBD5E1] text-base placeholder:text-[#94A3B8] focus:border-[#1E3A8A] outline-none"
             />
-            <p className="text-[11px] text-[#64748B] mt-1">Shown to your teacher only when you choose to. &ldquo;I&apos;m lost&rdquo; is always anonymous.</p>
+            <p className="text-[11px] text-[#64748B] mt-1">
+              {account ? "From your student account. " : ""}Shown to your teacher only when you choose to. &ldquo;I&apos;m lost&rdquo; is always anonymous.
+            </p>
           </div>
 
           <div>
@@ -124,10 +137,17 @@ function JoinContent() {
 
           <p className="text-[11px] text-[#64748B] flex items-start gap-1.5">
             <ShieldCheck className="w-4 h-4 text-[#059669] flex-shrink-0" />
-            This device gets a private pass for this classroom only. No account or phone number needed.
+            {account
+              ? `Signed in as ${account}: this classroom is saved to your account, so it shows up on every device.`
+              : "This device gets a private pass for this classroom only. No account or phone number needed."}
           </p>
         </form>
 
+        {!account && (
+          <p className="text-center text-xs text-[#64748B]">
+            Have a student account? <Link href={`/student/login${pin ? `?pin=${pin}` : ""}`} className="font-bold text-[#1E3A8A] hover:underline">Sign in</Link> to keep your lectures on every device.
+          </p>
+        )}
         <p className="text-center text-xs text-[#64748B]">
           Teacher? <Link href="/teacher/login" className="font-bold text-[#1E3A8A] hover:underline">Sign in here</Link>
         </p>

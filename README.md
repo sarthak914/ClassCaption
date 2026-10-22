@@ -73,6 +73,8 @@ scripts/board.mjs            board capture test: node scripts/board.mjs photo.jp
 
 ## Accounts and joining
 
+- **Student accounts (optional):** students can create an account at `/student/login` (name, email, password, roll number). Classrooms they join with a PIN are saved to the account, so their dashboard shows every classroom and past lecture on any device they sign in on. Joining without an account still works, as a pass on that one device; creating an account later moves those classrooms in.
+
 - **Teachers** create an account at `/teacher/login` (name, email, password; passwords are hashed with scrypt). A teacher sees and controls only their own classrooms, live classes and recordings. The first teacher to sign up inherits classrooms created before accounts existed.
 - **Students** join at `/join` with the classroom PIN or by scanning the QR code from the teacher's "Join QR" button, and enter their name. The device gets a signed, HttpOnly pass for that classroom only: no account needed. Questions carry the name from the pass (or none, if asked anonymously), so nobody can post as someone else.
 - Teachers can make a **new PIN** at any time; the old one stops working for new joins.

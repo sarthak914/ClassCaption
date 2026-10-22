@@ -46,6 +46,7 @@ type Notes = {
   summary: string[];
   key_terms: { term: string; meaning: string }[];
   quiz: { question: string; options: string[]; answer_index: number; explanation: string }[];
+  practice_questions?: { question: string; answer: string }[];
   timeline: { start_s: number; topic: string }[];
 };
 type Citation = { idx: number; start_s: number; quote: string };
@@ -61,7 +62,8 @@ function RecordedLectureContent({
   const { id } = use(paramsPromise);
   const searchParams = useSearchParams();
   const router = useRouter();
-  const initialTab = searchParams?.get("tab") === "notes" ? "notes" : "notes";
+  const tabParam = searchParams?.get("tab");
+  const initialTab = tabParam === "quiz" || tabParam === "ask" || tabParam === "transcript" ? tabParam : "notes";
 
   const [lecture, setLecture] = useState<Lecture | null>(null);
   const [segments, setSegments] = useState<Segment[]>([]);
@@ -74,6 +76,7 @@ function RecordedLectureContent({
   const [notesLoading, setNotesLoading] = useState(false);
   const [showCC, setShowCC] = useState(true);
   const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [revealed, setRevealed] = useState<Record<number, boolean>>({});
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTimeSec, setCurrentTimeSec] = useState(0);
@@ -128,7 +131,7 @@ function RecordedLectureContent({
       } catch (err) {
         if (stop) return;
         if (needsAuth(err)) {
-          setLoadError("This lecture belongs to a classroom you haven't joined on this device. Join with the class PIN first.");
+          setLoadError("This lecture belongs to a classroom you haven't joined yet. Sign in to your student account, or join with the class PIN.");
           return;
         }
         // A live class that is still running has no lecture yet.
@@ -217,6 +220,40 @@ function RecordedLectureContent({
   const subtitleSize = textSize === "sm" ? "text-xs" : textSize === "lg" ? "text-lg" : "text-sm";
   const conceptNotes = selectedCaptionLang === "en" ? notesEn : notes;
 
+  // Quiz results are saved for signed-in student accounts (best score shows on the dashboard).
+  const [quizSaved, setQuizSaved] = useState<{ best: number; total: number; attempts: number } | null>(null);
+  const [quizAccount, setQuizAccount] = useState<boolean | null>(null);
+  const [quizJustSaved, setQuizJustSaved] = useState(false);
+  useEffect(() => {
+    if (!lecture || !ready || role !== "student") return;
+    api<{ attempt: { best: number; total: number; attempts: number } | null; account: boolean }>(`/api/lectures/${lecture.id}/quiz`)
+      .then((d) => {
+        setQuizSaved(d.attempt);
+        setQuizAccount(d.account);
+      })
+      .catch(() => {});
+  }, [lecture?.id, ready, role]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Each language has its own quiz, so switching language starts it fresh.
+  useEffect(() => {
+    setAnswers({});
+    setQuizJustSaved(false);
+  }, [selectedCaptionLang]);
+  const quizLen = conceptNotes?.quiz.length ?? 0;
+  const answeredAll = quizLen > 0 && Object.keys(answers).length === quizLen;
+  useEffect(() => {
+    if (!answeredAll || !lecture || role !== "student") return;
+    api<{ saved: boolean; best?: number; total: number; attempts?: number }>(`/api/lectures/${lecture.id}/quiz`, {
+      json: { lang: selectedCaptionLang, answers: Array.from({ length: quizLen }, (_, i) => answers[i]) },
+    })
+      .then((r) => {
+        if (r.saved) {
+          setQuizSaved({ best: r.best ?? 0, total: r.total, attempts: r.attempts ?? 1 });
+          setQuizJustSaved(true);
+        }
+      })
+      .catch(() => {});
+  }, [answeredAll]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const playAudioNarration = () => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       if (isNarrating) {
@@ -285,11 +322,21 @@ function RecordedLectureContent({
     return (
       <div className="min-h-screen bg-[#F8FAFC] p-8 text-center text-sm text-[#475569]">
         {loadError || "Loading lecture hub..."}{" "}
-        {loadError && (
-          <Link href={loadError.includes("PIN") ? "/join" : "/student"} className="text-[#1E3A8A] underline font-bold">
-            {loadError.includes("PIN") ? "Join with PIN" : "Back"}
-          </Link>
-        )}
+        {loadError &&
+          (loadError.includes("PIN") ? (
+            <span className="inline-flex gap-3">
+              <Link href={`/student/login?next=/student/lectures/${id}`} className="text-[#1E3A8A] underline font-bold">
+                Sign in
+              </Link>
+              <Link href="/join" className="text-[#1E3A8A] underline font-bold">
+                Join with PIN
+              </Link>
+            </span>
+          ) : (
+            <Link href="/student" className="text-[#1E3A8A] underline font-bold">
+              Back
+            </Link>
+          ))}
       </div>
     );
   }
@@ -779,38 +826,99 @@ function RecordedLectureContent({
             </div>
           )}
 
-          {/* TAB 3: AI QUIZ */}
+          {/* TAB 3: AI QUIZ + exam practice */}
           {activeTab === "quiz" && (
-            <div className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs space-y-4">
-              <h3 className="text-base font-bold text-[#0F172A] font-heading">
-                AI Knowledge Check Quiz ({conceptNotes?.quiz.length ?? 0} Questions)
-              </h3>
-              {!conceptNotes && <p className="text-xs text-[#64748B]">The quiz is generated with the AI notes.</p>}
-              {conceptNotes?.quiz.map((q, qi) => (
-                <div key={qi} className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-3">
-                  <p className="text-sm font-bold text-[#0F172A]">
-                    Q{qi + 1}. {q.question}
-                  </p>
-                  <div className="space-y-1.5 text-xs">
-                    {q.options.map((opt, i) => {
-                      const picked = answers[qi];
-                      const state = picked === undefined ? "" : i === q.answer_index ? "border-[#059669] bg-[#ECFDF5]" : i === picked ? "border-[#DC2626] bg-[#FEF2F2]" : "";
-                      return (
-                        <button
-                          key={i}
-                          onClick={() => {
-                            setAnswers((a) => ({ ...a, [qi]: i }));
-                            alert(i === q.answer_index ? `Correct! ${q.explanation}` : `Try again! ${q.explanation}`);
-                          }}
-                          className={`w-full text-left p-2.5 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#EFF6FF] font-medium transition ${state}`}
-                        >
-                          {String.fromCharCode(65 + i)}. {opt}
-                        </button>
-                      );
-                    })}
-                  </div>
+            <div className="space-y-4">
+              <div className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-base font-bold text-[#0F172A] font-heading">Quick quiz ({conceptNotes?.quiz.length ?? 0} questions)</h3>
+                  {conceptNotes && Object.keys(answers).length > 0 && (
+                    <span className="text-xs font-bold text-[#1E3A8A]">
+                      Score: {conceptNotes.quiz.filter((q, qi) => answers[qi] === q.answer_index).length} / {conceptNotes.quiz.length}
+                    </span>
+                  )}
                 </div>
-              ))}
+                {quizSaved && (
+                  <p className="text-xs font-semibold text-[#065F46] bg-[#ECFDF5] border border-[#A7F3D0] rounded-xl px-3 py-2">
+                    {quizJustSaved ? "Saved to your account. " : ""}Your best: {quizSaved.best}/{quizSaved.total} ({quizSaved.attempts} attempt
+                    {quizSaved.attempts === 1 ? "" : "s"})
+                  </p>
+                )}
+                {answeredAll && quizAccount === false && role === "student" && (
+                  <p className="text-xs text-[#475569]">
+                    <Link href={`/student/login?next=${encodeURIComponent(`/student/lectures/${id}?tab=quiz`)}`} className="font-bold text-[#1E3A8A] underline">
+                      Sign in
+                    </Link>{" "}
+                    to save your quiz scores.
+                  </p>
+                )}
+                {!conceptNotes && <p className="text-xs text-[#64748B]">{notesLoading ? "Writing the quiz..." : "The quiz is generated with the AI notes."}</p>}
+                {conceptNotes?.quiz.map((q, qi) => {
+                  const picked = answers[qi];
+                  return (
+                    <div key={qi} className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-3">
+                      <p className="text-sm font-bold text-[#0F172A]">
+                        Q{qi + 1}. {q.question}
+                      </p>
+                      <div className="space-y-1.5 text-xs">
+                        {q.options.map((opt, i) => {
+                          const state = picked === undefined ? "" : i === q.answer_index ? "border-[#059669] bg-[#ECFDF5]" : i === picked ? "border-[#DC2626] bg-[#FEF2F2]" : "opacity-70";
+                          return (
+                            <button
+                              key={i}
+                              disabled={picked !== undefined}
+                              onClick={() => setAnswers((a) => ({ ...a, [qi]: i }))}
+                              className={`w-full text-left p-2.5 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#EFF6FF] font-medium transition ${state}`}
+                            >
+                              {String.fromCharCode(65 + i)}. {opt}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {picked !== undefined && (
+                        <p className={`text-xs p-2.5 rounded-xl ${picked === q.answer_index ? "bg-[#ECFDF5] text-[#065F46]" : "bg-[#FEF2F2] text-[#991B1B]"}`}>
+                          <span className="font-bold">{picked === q.answer_index ? "Correct. " : `Not quite: the answer is ${String.fromCharCode(65 + q.answer_index)}. `}</span>
+                          {q.explanation}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+                {conceptNotes && Object.keys(answers).length > 0 && (
+                  <button
+                    onClick={() => {
+                      setAnswers({});
+                      setQuizJustSaved(false);
+                    }}
+                    className="text-xs font-bold text-[#1E3A8A] hover:underline"
+                  >
+                    Try the quiz again
+                  </button>
+                )}
+              </div>
+
+              {!!conceptNotes?.practice_questions?.length && (
+                <div className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs space-y-3">
+                  <div>
+                    <h3 className="text-base font-bold text-[#0F172A] font-heading">Exam practice</h3>
+                    <p className="text-xs text-[#64748B]">Write your answer first, then compare it with the model answer.</p>
+                  </div>
+                  {conceptNotes.practice_questions.map((q, qi) => (
+                    <div key={qi} className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
+                      <p className="text-sm font-bold text-[#0F172A]">
+                        {qi + 1}. {q.question}
+                      </p>
+                      {revealed[qi] ? (
+                        <p className="text-xs text-[#334155] leading-relaxed p-3 rounded-xl bg-white border border-[#E2E8F0]">{q.answer}</p>
+                      ) : (
+                        <button onClick={() => setRevealed((r) => ({ ...r, [qi]: true }))} className="text-xs font-bold text-[#1E3A8A] hover:underline">
+                          Show model answer
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

@@ -4,10 +4,12 @@ import { LANG_CODES } from "@/lib/languages";
 import { clientIp, getStudent, newStudentId, setStudentCookie } from "@/lib/auth";
 import { rateLimit } from "@/lib/ratelimit";
 import { hasFoulLanguage } from "@/lib/profanity";
+import { enroll } from "@/lib/students";
 
 /**
  * POST /api/class/join  { pin, name, lang }   (student types or scans the classroom PIN)
- * Gives the device a signed student pass for that classroom, so it can open the
+ * Gives the device a signed student pass for that classroom (and, for a signed-in student account,
+ * records the enrolment so it shows on every device), so it can open the
  * live class, react, and see the classroom's recorded lectures. PIN guessing is
  * rate-limited per network.
  * → { classroom, live_class | null, captions (last 30 in `lang`, when live), lang }
@@ -29,9 +31,12 @@ export const POST = route(async (req: Request) => {
   const prev = await getStudent();
   const student = {
     sid: prev?.sid ?? newStudentId(),
-    name,
-    rooms: [room.id, ...(prev?.rooms ?? []).filter((r) => r !== room.id)].slice(0, 30),
+    // A signed-in account keeps its own name; a device pass takes the typed one.
+    name: prev?.acct ? prev.name : name,
+    rooms: [room.id, ...(prev?.rooms ?? []).filter((r) => r !== room.id)].slice(0, 50),
+    ...(prev?.acct ? { acct: true } : {}),
   };
+  if (student.acct) await enroll(student.sid, [room.id]);
 
   const live = await liveClassOf(room.id);
   let captions: unknown[] = [];

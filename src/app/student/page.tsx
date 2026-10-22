@@ -7,7 +7,7 @@ import { Navbar } from "@/components/navigation/Navbar";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { api, pref, setPref, sourceLabel } from "@/lib/client/api";
 import { LANGUAGES } from "@/lib/languages";
-import { Sparkles, Volume2, QrCode, ArrowRight, BookOpen, Radio, LogOut, ShieldCheck, Video } from "lucide-react";
+import { Sparkles, Volume2, QrCode, ArrowRight, BookOpen, LogOut, ShieldCheck, Video, Search, FileText, ListChecks, MessageCircleQuestion, UserPlus } from "lucide-react";
 
 type Room = {
   id: string;
@@ -18,9 +18,22 @@ type Room = {
   live_class: { id: string; title: string; started_at: string } | null;
   lecture_count: number;
 };
-type LectureItem = { id: string; title: string; status: string; source: string; duration_s: number | null; created_at: string; classroom_id: string | null };
+type LectureItem = {
+  id: string;
+  title: string;
+  status: string;
+  source: string;
+  duration_s: number | null;
+  created_at: string;
+  classroom_id: string | null;
+  quiz?: { best: number; total: number } | null; // my best saved quiz score (student accounts)
+};
 type Term = { term: string; meaning: string };
-type Home = { student: { name: string } | null; classrooms: Room[]; lectures: LectureItem[] };
+type Home = {
+  student: { name: string; account: boolean; email: string | null; roll_no: string | null } | null;
+  classrooms: Room[];
+  lectures: LectureItem[];
+};
 
 export default function StudentHomePage() {
   const router = useRouter();
@@ -104,15 +117,18 @@ export default function StudentHomePage() {
     setTimeout(() => setTested(false), 3000);
   };
 
+  const account = !!home?.student?.account;
   const leave = async () => {
-    if (!confirm("Leave all classrooms on this device? You will need the PIN again to rejoin.")) return;
+    const msg = account
+      ? "Sign out on this device? Your classes and lectures stay in your account."
+      : "Leave all classrooms on this device? You will need the PIN again to rejoin.";
+    if (!confirm(msg)) return;
     await api("/api/auth/logout", { json: { as: "student" } }).catch(() => {});
-    router.replace("/join");
+    router.replace(account ? "/student/login" : "/join");
   };
 
   const liveMins = live?.live_class ? Math.max(0, Math.floor((now - new Date(live.live_class.started_at).getTime()) / 60000)) : 0;
   const name = home?.student?.name;
-  const roomName = (id: string | null) => home?.classrooms.find((r) => r.id === id)?.name ?? "";
 
   if (home && !home.classrooms.length) {
     return (
@@ -126,6 +142,11 @@ export default function StudentHomePage() {
               <QrCode className="w-4 h-4" />
               Join a class
             </Link>
+            {!home.student?.account && (
+              <p className="text-xs text-[#64748B]">
+                Already have a student account? <Link href="/student/login" className="font-bold text-[#1E3A8A] hover:underline">Sign in</Link> to see your classes and past lectures.
+              </p>
+            )}
           </section>
         </main>
       </div>
@@ -301,14 +322,17 @@ export default function StudentHomePage() {
           })}
         </section>
 
-        {/* 5. Recent recordings */}
+        {/* 5. Lecture library: every past lecture of my classrooms */}
         <section id="recordings" className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs scroll-mt-20">
-          <div className="flex items-center gap-2 mb-1">
-            <Video className="w-4 h-4 text-[#1E3A8A]" />
-            <h3 className="text-base font-bold text-[#0F172A] font-heading">Recent Lectures</h3>
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <div className="flex items-center gap-2">
+              <Video className="w-4 h-4 text-[#1E3A8A]" />
+              <h3 className="text-base font-bold text-[#0F172A] font-heading">My Lectures</h3>
+            </div>
+            <span className="text-xs font-bold text-[#64748B]">{home?.lectures.length ?? 0} total</span>
           </div>
-          <p className="text-xs text-[#64748B] mb-3">Subtitles, AI notes, a quiz and Ask-the-lecture, in your language.</p>
-          <LectureList items={(home?.lectures ?? []).slice(0, 6)} label={(l) => roomName(l.classroom_id)} />
+          <p className="text-xs text-[#64748B] mb-3">Every class you attended or missed: AI notes and summary, a quiz, and Ask-the-lecture, in {langInfo.name}.</p>
+          <LectureLibrary lectures={home?.lectures ?? []} rooms={home?.classrooms ?? []} />
         </section>
 
         {/* 6. Glossary */}
@@ -339,7 +363,24 @@ export default function StudentHomePage() {
 
         {/* 7. Profile & accessibility */}
         <section id="profile" className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs space-y-4 scroll-mt-20">
-          <h3 className="text-base font-bold text-[#0F172A] font-heading">This device</h3>
+          <h3 className="text-base font-bold text-[#0F172A] font-heading">{account ? "My account" : "This device"}</h3>
+          {account ? (
+            <p className="text-xs text-[#475569]">
+              {home?.student?.email}
+              {home?.student?.roll_no ? ` · Roll no. ${home.student.roll_no}` : ""}. Your classes and lectures show up on every device you sign in on.
+            </p>
+          ) : (
+            <Link
+              href="/student/login?mode=signup"
+              className="flex items-center gap-3 p-3.5 rounded-2xl bg-[#EFF6FF] border border-[#BFDBFE] text-[#1E3A8A] hover:bg-[#DBEAFE]"
+            >
+              <UserPlus className="w-5 h-5 flex-shrink-0" />
+              <span className="text-xs">
+                <span className="font-bold block">Create a student account</span>
+                Keep these classes and every past lecture on your phone and laptop. Takes 20 seconds.
+              </span>
+            </Link>
+          )}
           <div>
             <label htmlFor="lang" className="text-xs font-bold uppercase tracking-wider text-[#475569] block mb-1">Caption language</label>
             <select
@@ -367,11 +408,11 @@ export default function StudentHomePage() {
           <div className="pt-3 border-t border-[#E2E8F0] flex items-center justify-between gap-2 text-xs text-[#64748B]">
             <span className="flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-[#059669]" />
-              Signed in as {name ?? "..."} on this device
+              {account ? `Signed in as ${name ?? "..."}` : `Joined as ${name ?? "..."} on this device`}
             </span>
             <button onClick={leave} className="font-bold text-[#64748B] hover:text-[#DC2626] flex items-center gap-1">
               <LogOut className="w-3.5 h-3.5" />
-              Leave
+              {account ? "Sign out" : "Leave"}
             </button>
           </div>
         </section>
@@ -382,8 +423,96 @@ export default function StudentHomePage() {
   );
 }
 
-function LectureList({ items, label }: { items: LectureItem[]; label?: (l: LectureItem) => string }) {
-  if (!items.length) return <p className="text-xs text-[#64748B] mt-3">No recordings yet.</p>;
+const fmtDuration = (s: number | null) => (s ? `${Math.max(1, Math.round(s / 60))} min` : "");
+
+/** Every lecture of my classrooms, searchable and filterable by classroom, with one tap to notes, quiz or Ask. */
+function LectureLibrary({ lectures, rooms }: { lectures: LectureItem[]; rooms: Room[] }) {
+  const [q, setQ] = useState("");
+  const [room, setRoom] = useState<string>("all");
+  const roomName = (id: string | null) => rooms.find((r) => r.id === id)?.name ?? "";
+  const shown = lectures.filter(
+    (l) => (room === "all" || l.classroom_id === room) && (!q.trim() || `${l.title} ${roomName(l.classroom_id)}`.toLowerCase().includes(q.trim().toLowerCase())),
+  );
+  if (!lectures.length) return <p className="text-xs text-[#64748B] mt-3">No lectures yet. They appear here as soon as your teacher ends a live class or uploads a recording.</p>;
+
+  return (
+    <div className="space-y-3">
+      <div className="relative">
+        <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search lectures"
+          aria-label="Search lectures"
+          className="w-full h-10 pl-9 pr-3 rounded-xl border border-[#CBD5E1] bg-white text-sm focus:border-[#1E3A8A] outline-none"
+        />
+      </div>
+      {rooms.length > 1 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+          {[{ id: "all", name: "All classes" }, ...rooms].map((r) => (
+            <button
+              key={r.id}
+              onClick={() => setRoom(r.id)}
+              className={`h-8 px-3 rounded-full text-xs font-bold whitespace-nowrap border transition ${
+                room === r.id ? "bg-[#1E3A8A] text-white border-[#1E3A8A]" : "bg-white text-[#475569] border-[#CBD5E1] hover:bg-[#F1F5F9]"
+              }`}
+            >
+              {r.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {!shown.length && <p className="text-xs text-[#64748B]">No lectures match.</p>}
+      <div className="space-y-2">
+        {shown.map((l) => {
+          const ready = l.status === "ready";
+          const href = `/student/lectures/${l.id}`;
+          return (
+            <div key={l.id} className="p-3.5 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC]">
+              <Link href={href} className="block min-w-0 group">
+                <span className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-sm text-[#0F172A] group-hover:text-[#1E3A8A] truncate">{l.title}</span>
+                  {l.quiz && (
+                    <span
+                      className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
+                        l.quiz.best === l.quiz.total ? "bg-[#ECFDF5] text-[#065F46]" : "bg-[#FEF3C7] text-[#92400E]"
+                      }`}
+                    >
+                      Quiz {l.quiz.best}/{l.quiz.total}
+                    </span>
+                  )}
+                </span>
+                <span className="text-[11px] text-[#64748B] truncate block">
+                  {[roomName(l.classroom_id), new Date(l.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }), fmtDuration(l.duration_s), l.source === "live" ? "Live class" : "Recording"]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </Link>
+              {ready ? (
+                <div className="grid grid-cols-3 gap-1.5 mt-2.5">
+                  <Link href={`${href}?tab=notes`} className="h-8 rounded-lg bg-white border border-[#CBD5E1] text-[11px] font-bold text-[#0F172A] hover:bg-[#EFF6FF] flex items-center justify-center gap-1">
+                    <FileText className="w-3.5 h-3.5 text-[#1E3A8A]" /> Notes
+                  </Link>
+                  <Link href={`${href}?tab=quiz`} className="h-8 rounded-lg bg-white border border-[#CBD5E1] text-[11px] font-bold text-[#0F172A] hover:bg-[#EFF6FF] flex items-center justify-center gap-1">
+                    <ListChecks className="w-3.5 h-3.5 text-[#1E3A8A]" /> Quiz
+                  </Link>
+                  <Link href={`${href}?tab=ask`} className="h-8 rounded-lg bg-white border border-[#CBD5E1] text-[11px] font-bold text-[#0F172A] hover:bg-[#EFF6FF] flex items-center justify-center gap-1">
+                    <MessageCircleQuestion className="w-3.5 h-3.5 text-[#1E3A8A]" /> Ask
+                  </Link>
+                </div>
+              ) : (
+                <p className="text-[11px] text-[#B45309] font-semibold mt-1.5">{l.status === "failed" ? "Processing failed" : "Preparing transcript and notes..."}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function LectureList({ items }: { items: LectureItem[] }) {
+  if (!items.length) return <p className="text-xs text-[#64748B] mt-3">No lectures yet.</p>;
   return (
     <div className="mt-3 space-y-1.5">
       {items.map((l) => (
@@ -392,10 +521,7 @@ function LectureList({ items, label }: { items: LectureItem[]; label?: (l: Lectu
           href={`/student/lectures/${l.id}`}
           className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] hover:bg-[#EFF6FF] text-xs"
         >
-          <span className="min-w-0">
-            <span className="font-semibold text-[#0F172A] truncate block">{l.title}</span>
-            {label && <span className="text-[#64748B] truncate block">{label(l)}</span>}
-          </span>
+          <span className="font-semibold text-[#0F172A] truncate min-w-0">{l.title}</span>
           <span className="text-[#64748B] flex-shrink-0">{l.status === "ready" ? new Date(l.created_at).toLocaleDateString() : l.status}</span>
         </Link>
       ))}

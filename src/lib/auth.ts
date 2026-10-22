@@ -8,7 +8,8 @@ import { HttpError } from "./http";
 /**
  * Sessions are signed cookies (HMAC-SHA256), so no session table is needed.
  *   cc_teacher: { tid }                  set by /api/auth/login or /signup
- *   cc_student: { sid, name, rooms[] }   set by /api/class/join (rooms = classroom ids joined with a PIN)
+ *   cc_student: { sid, name, rooms[], acct? }  set by /api/class/join (rooms = classroom ids joined with a PIN)
+ *                                              or /api/auth/student/*; acct = true when sid is a students.id
  * The browser can't read or forge them (HttpOnly + signature); SameSite=Lax blocks cross-site POSTs.
  */
 const TEACHER_COOKIE = "cc_teacher";
@@ -17,7 +18,7 @@ const TEACHER_TTL_S = 7 * 24 * 3600;
 const STUDENT_TTL_S = 120 * 24 * 3600;
 
 export type TeacherSession = { tid: string };
-export type StudentSession = { sid: string; name: string; rooms: string[] };
+export type StudentSession = { sid: string; name: string; rooms: string[]; acct?: boolean };
 
 function secret() {
   // SESSION_SECRET is optional: by default derive one from the service-role key, which is already secret.
