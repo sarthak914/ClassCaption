@@ -1,6 +1,6 @@
 "use client";
 
-import { HelpCircle, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 interface ConfusionMeterProps {
   count: number;
@@ -15,61 +15,40 @@ export function ConfusionMeter({ count, totalStudents = 0, lastSpikeTime, topic 
   const isHigh = count > 0 && percentage >= 5;
 
   return (
-    <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-[#FEF3C7] flex items-center justify-center text-[#D97706]">
-            <HelpCircle className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-[#475569] block">
-              &ldquo;I&apos;m Lost&rdquo; taps (last minute)
-            </span>
-            <span className="text-2xl font-extrabold text-[#0F172A] font-heading">
-              {count} {count === 1 ? "tap" : "taps"} <span className="text-sm font-semibold text-[#64748B]">({totalStudents ? `${percentage}% of ${totalStudents}` : "no students yet"})</span>
-            </span>
-          </div>
-        </div>
-
-        <span
-          className={`px-3 py-1 rounded-full text-xs font-bold border ${
-            isHigh
-              ? "bg-[#FEF2F2] text-[#DC2626] border-[#FECACA] animate-pulse"
-              : "bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]"
-          }`}
-        >
-          {isHigh ? "Attention Needed" : "Normal Comprehension"}
-        </span>
+    <div className="cc-card p-5">
+      <div className="flex items-start justify-between gap-3 mb-1">
+        <span className="cc-eyebrow">&ldquo;I&apos;m lost&rdquo; · last minute</span>
+        <span className={`cc-stamp ${isHigh ? "text-sindoor" : "text-patta"}`}>{isHigh ? "Slow down" : "Following"}</span>
       </div>
+      <p className="font-heading text-4xl font-normal leading-none mt-2">
+        {count} <span className="font-sans text-sm text-ink-3">{count === 1 ? "tap" : "taps"} · {totalStudents ? `${percentage}% of ${totalStudents}` : "no students yet"}</span>
+      </p>
 
-      {/* Progress Bar */}
-      <div className="w-full bg-[#E2E8F0] h-2.5 rounded-full overflow-hidden my-3">
+      {/* Share of the class, scaled so 25% fills the bar; the tick marks the 5% line */}
+      <div className="relative w-full bg-paper-2 h-2 rounded-full overflow-hidden mt-4">
         <div
-          className={`h-full transition-all duration-500 rounded-full ${
-            isHigh ? "bg-[#DC2626]" : "bg-[#059669]"
-          }`}
-          style={{ width: `${Math.min(100, Math.max(4, percentage * 4))}%` }}
+          className={`h-full transition-all duration-500 rounded-full ${isHigh ? "bg-sindoor" : "bg-patta"}`}
+          style={{ width: `${Math.min(100, Math.max(count ? 4 : 0, percentage * 4))}%` }}
         />
+        <span className="absolute top-0 bottom-0 left-[20%] w-px bg-ink-4" aria-hidden />
+      </div>
+      <div className="flex justify-between text-[11px] text-ink-3 mt-1.5">
+        <span>Alert above 5%</span>
+        <span className="font-mono">{percentage}%</span>
       </div>
 
-      <div className="flex justify-between text-[11px] font-semibold text-[#64748B] mb-3">
-        <span>Threshold: &lt;5%</span>
-        <span>Current: {percentage}%</span>
-      </div>
-
-      {/* Spike Alert Banner matching Stitch */}
       {count > 0 && lastSpikeTime && (
-        <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-xl p-3 flex items-center gap-2 text-[#991B1B]">
-          <AlertTriangle className="w-4 h-4 flex-shrink-0 text-[#DC2626]" />
-          <p className="text-xs font-semibold">
-            Latest at {lastSpikeTime}
+        <p className="mt-3 pt-3 border-t border-rule text-sm text-ink-2 flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-sindoor" />
+          <span>
+            Latest at <span className="font-mono">{lastSpikeTime}</span>
             {topic ? (
               <>
-                {" "}during <span className="underline font-bold">{topic}</span>
+                {" "}during <span className="font-heading italic text-ink">&ldquo;{topic}&rdquo;</span>
               </>
             ) : null}
-          </p>
-        </div>
+          </span>
+        </p>
       )}
     </div>
   );

@@ -3,7 +3,8 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { GraduationCap, QrCode, ArrowRight, ShieldCheck, X } from "lucide-react";
+import { QrCode, ArrowRight, ShieldCheck, X } from "lucide-react";
+import { Brand } from "@/components/brand/Brand";
 import { api, pref, setPref } from "@/lib/client/api";
 import { LANGUAGES } from "@/lib/languages";
 
@@ -32,7 +33,8 @@ function JoinContent() {
       .catch(() => {});
     setName((n) => n || pref("name", ""));
     setLang(pref("lang", "hi"));
-    setCanScan(typeof window !== "undefined" && "BarcodeDetector" in window && !!navigator.mediaDevices?.getUserMedia);
+    // Any browser with camera access (https or localhost). Phones on http://<laptop IP> use their own camera app instead.
+    setCanScan(typeof window !== "undefined" && !!navigator.mediaDevices?.getUserMedia);
   }, []);
 
   const join = async (e?: React.FormEvent) => {
@@ -51,23 +53,19 @@ function JoinContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-5">
-        <Link href="/" className="flex items-center gap-3 justify-center">
-          <div className="w-10 h-10 rounded-2xl bg-[#1E3A8A] flex items-center justify-center text-white shadow-sm">
-            <GraduationCap className="w-6 h-6" />
-          </div>
-          <span className="font-extrabold text-xl tracking-tight font-heading">ClassCaption</span>
-        </Link>
+    <div className="min-h-screen bg-paper text-ink flex flex-col items-center justify-center px-4 py-10">
+      <div className="w-full max-w-md space-y-6">
+        <Brand className="justify-center" />
 
-        <form onSubmit={join} className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-sm space-y-4">
+        <form onSubmit={join} className="cc-card p-6 sm:p-7 space-y-5">
           <div>
-            <h1 className="text-2xl font-extrabold font-heading">Join your class</h1>
-            <p className="text-sm text-[#475569]">Use the PIN or QR code your teacher shows on the screen.</p>
+            <p className="font-[family-name:var(--font-tiro-deva)] text-sindoor text-lg leading-none mb-1" lang="hi">कक्षा में आइए</p>
+            <h1 className="text-3xl font-normal">Join your class</h1>
+            <p className="text-sm text-ink-3 mt-1">Use the PIN or QR code your teacher shows on the screen.</p>
           </div>
 
           <div>
-            <label htmlFor="pin" className="text-xs font-bold uppercase tracking-wider text-[#475569] block mb-1">Classroom PIN</label>
+            <label htmlFor="pin" className="cc-eyebrow block mb-1.5">Classroom PIN</label>
             <div className="flex gap-2">
               <input
                 id="pin"
@@ -79,10 +77,10 @@ function JoinContent() {
                 required
                 minLength={6}
                 placeholder="6 characters"
-                className="flex-1 h-13 px-4 rounded-xl border-2 border-[#CBD5E1] text-lg font-mono font-bold tracking-[0.3em] uppercase placeholder:tracking-normal placeholder:font-sans placeholder:text-sm placeholder:text-[#94A3B8] focus:border-[#1E3A8A] outline-none"
+                className="cc-input flex-1 min-w-0 h-14 px-4 text-2xl font-mono font-bold tracking-[0.4em] uppercase placeholder:tracking-normal placeholder:font-sans placeholder:text-sm placeholder:normal-case placeholder:font-normal"
               />
               {canScan && (
-                <button type="button" onClick={() => setScanning(true)} aria-label="Scan QR code" className="h-13 w-13 rounded-xl border-2 border-[#CBD5E1] flex items-center justify-center text-[#1E3A8A] hover:bg-[#EFF6FF]">
+                <button type="button" onClick={() => setScanning(true)} aria-label="Scan QR code" className="cc-btn h-14 w-14 flex-shrink-0">
                   <QrCode className="w-6 h-6" />
                 </button>
               )}
@@ -90,7 +88,7 @@ function JoinContent() {
           </div>
 
           <div>
-            <label htmlFor="name" className="text-xs font-bold uppercase tracking-wider text-[#475569] block mb-1">Your name</label>
+            <label htmlFor="name" className="cc-eyebrow block mb-1.5">Your name</label>
             <input
               id="name"
               value={name}
@@ -101,42 +99,50 @@ function JoinContent() {
               maxLength={40}
               autoComplete="name"
               placeholder="As your teacher knows you"
-              className="w-full h-12 px-4 rounded-xl border-2 border-[#CBD5E1] text-base placeholder:text-[#94A3B8] focus:border-[#1E3A8A] outline-none"
+              className="cc-input w-full h-12 px-4 text-base"
             />
-            <p className="text-[11px] text-[#64748B] mt-1">
+            <p className="text-xs text-ink-3 mt-1.5">
               {account ? "From your student account. " : ""}Shown to your teacher only when you choose to. &ldquo;I&apos;m lost&rdquo; is always anonymous.
             </p>
           </div>
 
           <div>
-            <label htmlFor="lang" className="text-xs font-bold uppercase tracking-wider text-[#475569] block mb-1">Captions in</label>
-            <select
-              id="lang"
-              value={lang}
-              onChange={(e) => setLang(e.target.value)}
-              className="w-full h-12 px-3 rounded-xl border-2 border-[#CBD5E1] bg-white text-base focus:border-[#1E3A8A] outline-none"
-            >
-              {LANGUAGES.map((l) => (
-                <option key={l.code} value={l.code}>
-                  {l.name} ({l.native})
-                </option>
-              ))}
-            </select>
+            <span className="cc-eyebrow block mb-1.5">Captions in</span>
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5" role="radiogroup" aria-label="Caption language">
+              {LANGUAGES.map((l) => {
+                const on = lang === l.code;
+                return (
+                  <button
+                    key={l.code}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setLang(l.code)}
+                    className={`rounded-[10px] border-[1.5px] px-2 pt-1.5 pb-1 text-left transition ${
+                      on ? "bg-neel border-ink text-white shadow-[2px_2px_0_var(--color-ink)]" : "bg-card border-rule hover:border-rule-strong"
+                    }`}
+                  >
+                    <span lang={l.code} className="block text-base leading-tight truncate">{l.native}</span>
+                    <span className={`block text-[10px] font-semibold uppercase tracking-[0.1em] ${on ? "text-haldi-line" : "text-ink-3"}`}>{l.name}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {error && <p className="text-sm text-[#DC2626] font-semibold">{error}</p>}
+          {error && <p className="text-sm text-sindoor font-semibold">{error}</p>}
 
           <button
             type="submit"
             disabled={joining || pin.length < 6 || name.trim().length < 2}
-            className="w-full h-13 rounded-2xl bg-[#1E3A8A] hover:bg-[#00236F] text-white font-extrabold text-base flex items-center justify-center gap-2 disabled:opacity-50 transition active:scale-95"
+            className="cc-btn cc-btn-primary w-full h-13 text-base"
           >
             {joining ? "Joining..." : "Join class"}
             <ArrowRight className="w-5 h-5" />
           </button>
 
-          <p className="text-[11px] text-[#64748B] flex items-start gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-[#059669] flex-shrink-0" />
+          <p className="text-xs text-ink-3 flex items-start gap-2">
+            <ShieldCheck className="w-4 h-4 text-patta flex-shrink-0" />
             {account
               ? `Signed in as ${account}: this classroom is saved to your account, so it shows up on every device.`
               : "This device gets a private pass for this classroom only. No account or phone number needed."}
@@ -144,12 +150,12 @@ function JoinContent() {
         </form>
 
         {!account && (
-          <p className="text-center text-xs text-[#64748B]">
-            Have a student account? <Link href={`/student/login${pin ? `?pin=${pin}` : ""}`} className="font-bold text-[#1E3A8A] hover:underline">Sign in</Link> to keep your lectures on every device.
+          <p className="text-center text-sm text-ink-3">
+            Have a student account? <Link href={`/student/login${pin ? `?pin=${pin}` : ""}`} className="font-semibold text-neel underline underline-offset-4 decoration-neel-line">Sign in</Link> to keep your lectures on every device.
           </p>
         )}
-        <p className="text-center text-xs text-[#64748B]">
-          Teacher? <Link href="/teacher/login" className="font-bold text-[#1E3A8A] hover:underline">Sign in here</Link>
+        <p className="text-center text-sm text-ink-3">
+          Teacher? <Link href="/teacher/login" className="font-semibold text-neel underline underline-offset-4 decoration-neel-line">Sign in here</Link>
         </p>
       </div>
 
@@ -169,7 +175,36 @@ function JoinContent() {
   );
 }
 
-/** Camera QR reader using the browser's BarcodeDetector (Chrome on Android). */
+type Detect = (v: HTMLVideoElement) => Promise<string | null>;
+
+/** The browser's own QR reader (Chrome/Edge on Android, desktop) or jsQR on a canvas (iPhone Safari, Firefox). */
+async function makeDetector(): Promise<Detect> {
+  if ("BarcodeDetector" in window) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const BD = (window as any).BarcodeDetector;
+      if ((await BD.getSupportedFormats?.())?.includes?.("qr_code") ?? true) {
+        const detector = new BD({ formats: ["qr_code"] });
+        return async (v) => (await detector.detect(v))[0]?.rawValue ?? null;
+      }
+    } catch {}
+  }
+  const { default: jsQR } = await import("jsqr");
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  return async (v) => {
+    if (!ctx || !v.videoWidth) return null;
+    // Downscale big camera frames: faster, and QR codes on a projector are large anyway.
+    const scale = Math.min(1, 640 / Math.max(v.videoWidth, v.videoHeight));
+    canvas.width = Math.round(v.videoWidth * scale);
+    canvas.height = Math.round(v.videoHeight * scale);
+    ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    return jsQR(img.data, img.width, img.height, { inversionAttempts: "dontInvert" })?.data ?? null;
+  };
+}
+
+/** Camera QR reader. */
 function QrScanner({ onCode, onClose }: { onCode: (text: string) => void; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const onCodeRef = useRef(onCode);
@@ -187,18 +222,22 @@ function QrScanner({ onCode, onClose }: { onCode: (text: string) => void; onClos
         if (!v) return;
         v.srcObject = stream;
         await v.play();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const detector = new (window as any).BarcodeDetector({ formats: ["qr_code"] });
+        const detect = await makeDetector();
+        let busy = false;
         timer = setInterval(async () => {
-          if (done || v.readyState < 2) return;
+          if (done || busy || v.readyState < 2) return;
+          busy = true;
           try {
-            const codes = await detector.detect(v);
-            if (codes[0]?.rawValue) {
+            const text = await detect(v);
+            if (text && !done) {
               done = true;
-              onCodeRef.current(codes[0].rawValue);
+              onCodeRef.current(text);
             }
-          } catch {}
-        }, 300);
+          } catch {
+          } finally {
+            busy = false;
+          }
+        }, 250);
       } catch (err) {
         setError((err as Error).name === "NotAllowedError" ? "Camera permission was denied. Type the PIN instead." : "Camera unavailable here. Type the PIN instead.");
       }
@@ -211,19 +250,19 @@ function QrScanner({ onCode, onClose }: { onCode: (text: string) => void; onClos
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-board flex flex-col items-center justify-center p-4">
       <button onClick={onClose} aria-label="Close scanner" className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center">
         <X className="w-5 h-5" />
       </button>
-      <video ref={videoRef} playsInline muted className="w-full max-w-md rounded-2xl" />
-      <p className="text-white text-sm mt-4 text-center">{error || "Point the camera at the QR code on the screen"}</p>
+      <video ref={videoRef} playsInline muted className="w-full max-w-md rounded-xl" />
+      <p className="text-chalk text-sm mt-4 text-center">{error || "Point the camera at the QR code on the screen"}</p>
     </div>
   );
 }
 
 export default function JoinPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-sm text-[#475569]">Loading...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-sm text-ink-2">Loading...</div>}>
       <JoinContent />
     </Suspense>
   );

@@ -7,26 +7,23 @@ import { PaceGauge } from "@/components/live/PaceGauge";
 import { ConfusionMeter } from "@/components/live/ConfusionMeter";
 import { createClient } from "@/lib/supabase/client";
 import { api, isUuid, needsAuth, speak } from "@/lib/client/api";
-import { JoinQrModal } from "@/components/join/JoinQrModal";
+import { JoinQrCard, JoinQrModal } from "@/components/join/JoinQrModal";
 import { PhraseRecorder } from "@/lib/client/phraseRecorder";
+import { useWakeLock } from "@/lib/client/wakeLock";
 import {
   Mic,
   MicOff,
-  Radio,
-  Wifi,
   Users,
   Clock,
   Volume2,
   Check,
-  CheckCircle2,
   Scan,
   Share2,
   Megaphone,
-  HelpCircle,
-  AlertTriangle,
-  Play,
-  Layers,
   ShieldAlert,
+  Keyboard,
+  Send,
+  Sun,
 } from "lucide-react";
 
 interface QuestionItem {
@@ -112,6 +109,8 @@ function TeacherLiveClassroomContent({
   const [ttsQueue, setTtsQueue] = useState(0);
   const [streamed, setStreamed] = useState(0);
   const [showQr, setShowQr] = useState(false);
+  const [typedCaption, setTypedCaption] = useState("");
+  const screenAwake = useWakeLock(!!cls);
 
   // Board capture
   const [scanning, setScanning] = useState(false);
@@ -243,15 +242,15 @@ function TeacherLiveClassroomContent({
     });
   };
 
-  /** Browser speech path (fallback): text recognised by Chrome. */
-  const sendCaption = async (text: string) => {
+  /** Browser speech path (fallback): text recognised by Chrome. Also used for captions the teacher types. */
+  const sendCaption = async (text: string, via = "Chrome speech") => {
     const c = clsRef.current;
     if (!c || endedRef.current) return;
     try {
       const data = await api<CaptionResponse>("/api/captions", {
         json: { classId: c.id, text, seq: seqRef.current++, targets: captionTargets(), context: recentRef.current },
       });
-      applyCaption(data, "Chrome speech");
+      applyCaption(data, via);
     } catch (err) {
       setSent((p) => ({ ...p, total: p.total + 1 }));
       setCaptionError((err as Error).message);
@@ -625,21 +624,36 @@ function TeacherLiveClassroomContent({
 
   if (loadError) {
     return (
-      <div className="min-h-screen bg-[#F8FAFC] p-8 text-center text-sm text-[#DC2626] font-semibold">
+      <div className="min-h-screen bg-paper p-8 text-center text-sm text-sindoor font-semibold">
         {loadError}{" "}
-        <a href="/teacher/dashboard" className="text-[#1E3A8A] underline">Back to dashboard</a>
+        <a href="/teacher/dashboard" className="text-neel underline">Back to dashboard</a>
       </div>
     );
   }
   if (!cls) {
-    return <div className="p-8 text-center text-sm text-[#475569]">Loading instructor console...</div>;
+    return <div className="p-8 text-center text-sm text-ink-2">Loading instructor console...</div>;
   }
 
+  const micOk = isRecording && !micMuted;
+  const micLabel = micError
+    ? micError
+    : !micSupported
+    ? "Mic unavailable (use Chrome)"
+    : micMuted
+    ? "Mic muted"
+    : isRecording
+    ? captureMode === "whisper"
+      ? "Accurate captions (Whisper)"
+      : "Listening (Chrome speech)"
+    : "Starting mic...";
+  const readingFeeds = Object.values(feeds).reduce((n, f) => n + f.readers, 0);
+  const extraLangs = Object.keys(readersRef.current).filter((l) => !(FEED_LANGS as readonly string[]).includes(l)).length;
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-24 text-[#0F172A]">
+    <div className="min-h-screen bg-paper pb-24 text-ink">
       <Navbar
         title="ClassCaption"
-        subtitle="Instructor Telemetry & Live Audio"
+        subtitle="Live class"
         homeHref="/teacher/dashboard"
         showEndLecture={true}
         onEndLecture={handleEndLecture}
@@ -656,397 +670,287 @@ function TeacherLiveClassroomContent({
         />
       )}
 
-      <main className="max-w-2xl mx-auto px-4 py-5 space-y-5">
-        {/* 1. Subheader Card with Status Metrics matching Stitch */}
-        <section className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ECFDF5] text-[#065F46] text-xs font-extrabold border border-[#A7F3D0]">
-              <span className="w-2 h-2 rounded-full bg-[#059669] animate-pulse" />
-              LIVE
-            </span>
-          </div>
-
-          <h1 className="text-xl sm:text-2xl font-extrabold text-[#0F172A] font-heading mb-1">
-            {cls.classroom?.name ?? cls.title}
-          </h1>
-          <p className="text-sm font-semibold text-[#475569] mb-4">
-            {cls.classroom ? cls.title : "Live Lecture"}
-          </p>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="h-10 px-3.5 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] flex items-center gap-2 text-xs font-bold font-mono text-[#0F172A]">
-              <Clock className="w-4 h-4 text-[#1E3A8A]" />
-              <span>{formatTime(elapsedSeconds)}</span>
-            </div>
-
-            <div className="h-10 px-3.5 rounded-xl border border-[#CBD5E1] bg-[#EFF6FF] flex items-center gap-2 text-xs font-bold text-[#1E3A8A]">
-              <Users className="w-4 h-4" />
-              <span>
-                {joinedCount} Joined <span className="text-[#059669]">({Object.values(feeds).reduce((n, f) => n + f.readers, 0)} reading feeds)</span>
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+        {/* 1. Class header and status */}
+        <section className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="cc-stamp text-sindoor">
+                <span className="w-1.5 h-1.5 rounded-full bg-sindoor animate-live-pulse" />
+                Live
+              </span>
+              <span className="font-mono text-sm text-ink-2 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-ink-3" />
+                {formatTime(elapsedSeconds)}
               </span>
             </div>
+            <h1 className="text-3xl sm:text-4xl font-normal leading-tight">{cls.classroom?.name ?? cls.title}</h1>
+            <p className="text-sm text-ink-3 mt-1">{cls.classroom ? cls.title : "Live Lecture"}</p>
+          </div>
 
-            <button
-              onClick={() => setShowQr(true)}
-              className="h-10 px-3.5 rounded-xl border border-[#CBD5E1] bg-[#FEF3C7] flex items-center gap-2 text-xs font-bold font-mono text-[#92400E] hover:bg-[#FDE68A]"
-            >
-              <span>PIN: {cls.classroom?.join_code}</span>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="cc-tag !bg-card">
+              <Users className="w-3.5 h-3.5 text-neel" />
+              {joinedCount} joined
+              <span className="text-ink-3 font-medium">· {readingFeeds} reading</span>
+            </span>
+            <button onClick={() => setShowQr(true)} className="cc-tag !bg-card hover:!border-ink font-mono" title="Show the join QR code">
+              PIN <span className="text-neel font-bold tracking-[0.2em]">{cls.classroom?.join_code}</span>
             </button>
-
-            <div
-              className={`h-10 px-3.5 rounded-xl border flex items-center gap-2 text-xs font-bold ${
-                isRecording && !micMuted
-                  ? "bg-[#ECFDF5] border-[#A7F3D0] text-[#065F46]"
-                  : "bg-[#FEF2F2] border-[#FECACA] text-[#DC2626]"
-              }`}
-            >
-              <span className={`w-2 h-2 rounded-full ${isRecording && !micMuted ? "bg-[#059669] animate-pulse" : "bg-[#DC2626]"}`} />
-              <span>
-                {micError
-                  ? micError
-                  : !micSupported
-                  ? "Mic unavailable (use Chrome)"
-                  : micMuted
-                  ? "Mic Muted"
-                  : isRecording
-                  ? captureMode === "whisper"
-                    ? "Accurate captions (Whisper)"
-                    : "Clear Audio Signal (Chrome speech)"
-                  : "Starting Mic..."}
+            <span className={`cc-tag !bg-card ${micOk ? "" : "!border-sindoor-line !text-sindoor"}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${micOk ? "bg-patta animate-pulse" : "bg-sindoor"}`} />
+              {micLabel}
+            </span>
+            {screenAwake && (
+              <span className="cc-tag !bg-card" title="This screen won't sleep during the class">
+                <Sun className="w-3.5 h-3.5 text-haldi-deep" />
+                Screen stays on
               </span>
-            </div>
-          </div>
-        </section>
-
-        {/* 2. Real-Time Confusion Meter matching Stitch */}
-        <ConfusionMeter
-          count={confusionCount}
-          totalStudents={joinedCount}
-          lastSpikeTime={lastSpike ? formatTime(Math.round(lastSpike.offset_s)).replace(/^00:/, "") : undefined}
-          topic={lastSpike?.text ? spikeTopic : undefined}
-        />
-
-        {/* 3. Speech Pace Coach Telemetry matching Stitch */}
-        <PaceGauge wpm={wpm} />
-
-        {/* 4. Network & Assistive Sink Card matching Stitch */}
-        <section className="bg-white rounded-3xl border border-[#E2E8F0] p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-[#EFF6FF] flex items-center justify-center text-[#1E3A8A]">
-                <Radio className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#64748B]">
-                  Network &amp; Assistive Sink
-                </span>
-                <h3 className="text-base font-bold text-[#0F172A] font-heading">
-                  {joinedCount} Connected
-                </h3>
-              </div>
-            </div>
-
-            <span className="px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1E40AF] text-xs font-bold border border-[#BFDBFE]">
-              {stablePct}% Stable
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 mb-3 text-xs">
-            <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
-              <span className="text-[#64748B] block mb-1">Caption Stream Latency:</span>
-              <span className={`font-bold ${latencyMs !== null && latencyMs > 2500 ? "text-[#D97706]" : "text-[#059669]"}`}>
-                {latencyMs === null ? "Waiting for speech" : `${latencyMs} ms`} {provider ? `(${provider})` : ""}
-              </span>
-            </div>
-            <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
-              <span className="text-[#64748B] block mb-1">TTS Queue Synchrony:</span>
-              <span className="font-bold text-[#1E3A8A]">{ttsQueue ? "Speaking queue" : "Synced"}</span>
-            </div>
-          </div>
-
-          <div className="bg-[#F1F5F9] rounded-xl p-3 text-xs text-[#475569] flex items-center gap-2">
-            <span>
-              ⓘ {captionError || `${streamed} caption${streamed === 1 ? "" : "s"} streamed • ${Object.keys(readersRef.current).length || 0} student language${Object.keys(readersRef.current).length === 1 ? "" : "s"} active`}
-            </span>
-          </div>
-        </section>
-
-        {/* 5. Live Transcription & Multilingual Feeds matching Stitch */}
-        <section className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-[#0F172A] font-heading">
-                Live Transcription &amp; Multilingual Feeds
-              </h3>
-              <p className="text-xs text-[#64748B]">
-                Continuous synchronized generation across {FEED_LANGS.length} language streams{Object.keys(readersRef.current).filter((l) => !(FEED_LANGS as readonly string[]).includes(l)).length ? ` (+${Object.keys(readersRef.current).filter((l) => !(FEED_LANGS as readonly string[]).includes(l)).length} more for students)` : ""}
-              </p>
-            </div>
-
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border ${micMuted || !isRecording ? "bg-[#FEF2F2] border-[#FECACA] text-[#DC2626] opacity-60" : "bg-[#ECFDF5] border-[#A7F3D0] text-[#065F46]"}`}>
-              <span>Mic:</span>
-              <div className="flex items-end gap-0.5 h-3">
-                <span className="w-1 bg-[#059669] rounded-full animate-soundwave-1" />
-                <span className="w-1 bg-[#059669] rounded-full animate-soundwave-2" />
-                <span className="w-1 bg-[#059669] rounded-full animate-soundwave-3" />
-              </div>
-            </div>
-          </div>
-
-          {/* Teacher Audio Source Box */}
-          <div className="p-4 rounded-2xl bg-[#0B0F19] text-[#F8FAFC] border border-white/10">
-            <span className="px-2.5 py-1 rounded-md bg-[#1E3A8A] text-[#90A8FF] font-mono text-[11px] font-bold block w-fit mb-2">
-              TEACHER AUDIO
-            </span>
-            <p className="text-sm font-medium leading-relaxed italic text-white">
-              &ldquo;{teacherAudio}&rdquo;
-            </p>
-          </div>
-
-          {/* 4 Multilingual Stream Cards matching Stitch */}
-          <div className="space-y-3">
-            {/* English Feed */}
-            <div className="p-4 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC]">
-              <div className="flex items-center justify-between text-xs mb-2">
-                <span className="font-bold text-[#0F172A] flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#059669]" />
-                  English (Standard)
-                </span>
-                <span className="text-[#64748B] font-semibold">{feeds.en.readers} Readers</span>
-              </div>
-              <p className="text-xs text-[#334155] leading-relaxed mb-3">
-                &ldquo;{feeds.en.text}&rdquo;
-              </p>
-              <div className="pt-2 border-t border-[#E2E8F0] flex items-center justify-between text-[11px] text-[#059669] font-semibold">
-                <span>Status: {feeds.en.status}</span>
-                <CheckCircle2 className="w-3.5 h-3.5 text-[#059669]" />
-              </div>
-            </div>
-
-            {/* Hindi Feed */}
-            <div className="p-4 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC]">
-              <div className="flex items-center justify-between text-xs mb-2">
-                <span className="font-bold text-[#0F172A] flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#059669]" />
-                  हिन्दी (Hindi)
-                </span>
-                <span className="text-[#64748B] font-semibold">{feeds.hi.readers} Readers</span>
-              </div>
-              <p className="text-xs text-[#334155] leading-relaxed mb-3">
-                &ldquo;{feeds.hi.text}&rdquo;
-              </p>
-              <div className="pt-2 border-t border-[#E2E8F0] flex items-center justify-between text-[11px] text-[#059669] font-semibold">
-                <span>Status: {feeds.hi.status}</span>
-                <CheckCircle2 className="w-3.5 h-3.5 text-[#059669]" />
-              </div>
-            </div>
-
-            {/* Tamil Feed */}
-            <div className="p-4 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC]">
-              <div className="flex items-center justify-between text-xs mb-2">
-                <span className="font-bold text-[#0F172A] flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#059669]" />
-                  தமிழ் (Tamil)
-                </span>
-                <span className="text-[#64748B] font-semibold">{feeds.ta.readers} Readers</span>
-              </div>
-              <p className="text-xs text-[#334155] leading-relaxed mb-3">
-                &ldquo;{feeds.ta.text}&rdquo;
-              </p>
-              <div className="pt-2 border-t border-[#E2E8F0] flex items-center justify-between text-[11px] text-[#059669] font-semibold">
-                <span>Status: {feeds.ta.status}</span>
-                <CheckCircle2 className="w-3.5 h-3.5 text-[#059669]" />
-              </div>
-            </div>
-
-            {/* Bengali Feed */}
-            <div className="p-4 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC]">
-              <div className="flex items-center justify-between text-xs mb-2">
-                <span className="font-bold text-[#0F172A] flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#059669]" />
-                  বাংলা (Bengali)
-                </span>
-                <span className="text-[#64748B] font-semibold">{feeds.bn.readers} Readers</span>
-              </div>
-              <p className="text-xs text-[#334155] leading-relaxed mb-3">
-                &ldquo;{feeds.bn.text}&rdquo;
-              </p>
-              <div className="pt-2 border-t border-[#E2E8F0] flex items-center justify-between text-[11px] text-[#059669] font-semibold">
-                <span>Status: {feeds.bn.status}</span>
-                <CheckCircle2 className="w-3.5 h-3.5 text-[#059669]" />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* 6. Live Questions & Assistive Audio Queue matching Stitch */}
-        <section className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-[#EFF6FF] flex items-center justify-center text-[#1E3A8A]">
-                <HelpCircle className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-[#0F172A] font-heading">
-                  Live Questions &amp; Assistive Audio Queue
-                </h3>
-                <p className="text-xs text-[#64748B]">
-                  Assistive speech requests and prioritized anonymous student doubts
-                </p>
-              </div>
-            </div>
-
-            <span className="px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1E40AF] text-xs font-bold">
-              {unresolvedCount} Unresolved
-            </span>
-          </div>
-
-          {blocked.count > 0 && (
-            <div className="flex items-start gap-2 p-3 rounded-xl bg-[#FEF2F2] border border-[#FECACA] text-xs text-[#991B1B]">
-              <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
-              <p>
-                <span className="font-bold">
-                  {blocked.count} inappropriate {blocked.count === 1 ? "message" : "messages"} blocked
-                </span>{" "}
-                before reaching the queue or the speaker:{" "}
-                {blocked.students.map((b) => `${b.name}${b.count > 1 ? ` (${b.count})` : ""}`).join(", ")}
-              </p>
-            </div>
-          )}
-
-          <div className="space-y-3">
-            {unresolvedCount === 0 && (
-              <p className="text-xs text-[#64748B] text-center py-3">
-                No questions yet. Student questions and Speak for Me requests appear here instantly.
-              </p>
             )}
-            {questions.map((q) => {
-              if (q.resolved) return null;
+          </div>
+        </section>
 
-              return (
-                <div
-                  key={q.id}
-                  className={`p-5 rounded-3xl border transition ${
-                    q.kind === "speak"
-                      ? "border-[#1E3A8A] bg-white shadow-sm"
-                      : "border-[#E2E8F0] bg-[#F8FAFC]"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-[#1E3A8A] text-white flex items-center justify-center font-bold text-xs">
-                        {q.studentName.slice(0, 2).toUpperCase()}
-                      </div>
-                      <div>
-                        <span className="font-bold text-sm text-[#0F172A] block">
-                          {q.studentName}
-                        </span>
-                        <span className="text-[11px] text-[#64748B]">
-                          {q.seat ? `${q.seat} • ` : ""}
-                          {q.timeAgo}
-                        </span>
-                      </div>
-                    </div>
-
-                    {q.kind === "speak" ? (
-                      <span className="px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1E40AF] text-xs font-bold flex items-center gap-1 border border-[#BFDBFE]">
-                        <Volume2 className="w-3.5 h-3.5" />
-                        Speak for Me
-                      </span>
-                    ) : (
-                      <span className="px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1E40AF] text-xs font-bold">
-                        Typed Question
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="text-sm font-semibold text-[#0F172A] leading-relaxed mb-4">
-                    &ldquo;{q.text}&rdquo;
-                  </p>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => playTTSAloud(q.text)}
-                      className="h-11 px-4 rounded-xl bg-[#1E3A8A] hover:bg-[#00236F] text-white font-bold text-xs flex items-center gap-2 shadow-xs transition active:scale-95"
-                    >
-                      <Volume2 className="w-4 h-4" />
-                      <span>Play Audio via Classroom Speakers</span>
-                    </button>
-
-                    <button
-                      onClick={() => markQuestionResolved(q.id)}
-                      className="h-11 px-4 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] text-[#0F172A] font-semibold text-xs flex items-center gap-1.5 transition active:scale-95"
-                    >
-                      <Check className="w-4 h-4 text-[#059669]" />
-                      <span>Mark Resolved</span>
-                    </button>
+        <div className="grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-6 items-start">
+          {/* Left: what the class is reading, and what it is asking */}
+          <div className="space-y-6 min-w-0">
+            {/* 2. The board: teacher audio and the language feeds */}
+            <section className="cc-board overflow-hidden">
+              <div className="px-5 pt-4 pb-3 flex items-center justify-between gap-3 border-b border-board-line">
+                <div>
+                  <span className="text-[11px] font-mono uppercase tracking-[0.16em] text-chalk-dim">You are saying</span>
+                </div>
+                <div className={`flex items-center gap-2 text-[11px] font-mono ${micOk ? "text-chalk-green" : "text-chalk-pink"}`}>
+                  {micOk ? "MIC ON" : "MIC OFF"}
+                  <div className={`flex items-end gap-0.5 h-3 ${micOk ? "" : "opacity-30"}`}>
+                    <span className="w-1 bg-chalk-green rounded-full animate-soundwave-1" />
+                    <span className="w-1 bg-chalk-green rounded-full animate-soundwave-2" />
+                    <span className="w-1 bg-chalk-green rounded-full animate-soundwave-3" />
                   </div>
                 </div>
-              );
-            })}
+              </div>
+              <p className="px-5 py-5 font-heading italic text-2xl sm:text-[1.7rem] leading-snug text-chalk">
+                &ldquo;{teacherAudio}&rdquo;
+              </p>
+
+              <div className="grid sm:grid-cols-2 border-t border-board-line">
+                {FEED_LANGS.map((code, i) => {
+                  const f = feeds[code];
+                  const label = { en: ["English", "English"], hi: ["हिंदी", "Hindi"], ta: ["தமிழ்", "Tamil"], bn: ["বাংলা", "Bengali"] }[code];
+                  return (
+                    <div
+                      key={code}
+                      className={`p-4 border-board-line ${i % 2 === 0 ? "sm:border-r" : ""} ${i < 2 ? "border-b" : i === 2 ? "border-b sm:border-b-0" : ""}`}
+                    >
+                      <div className="flex items-center justify-between text-[11px] mb-1.5">
+                        <span className="flex items-baseline gap-2">
+                          <span lang={code} className="text-sm text-chalk-blue">{label[0]}</span>
+                          {code !== "en" && <span className="font-mono uppercase tracking-wider text-chalk-dim">{label[1]}</span>}
+                        </span>
+                        <span className="font-mono text-chalk-dim">
+                          {f.readers} reading · <span className={f.status === "Live" ? "text-chalk-green" : ""}>{f.status}</span>
+                        </span>
+                      </div>
+                      <p lang={code} className="text-[15px] text-chalk/90 leading-relaxed">{f.text}</p>
+                    </div>
+                  );
+                })}
+              </div>
+              {extraLangs > 0 && (
+                <p className="px-5 py-2 text-[11px] font-mono text-chalk-dim border-t border-board-line">
+                  +{extraLangs} more language{extraLangs === 1 ? "" : "s"} translated for students
+                </p>
+              )}
+
+              {/* Typed captions: for a noisy room, a failed mic, or a formula/term the mic can't catch */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const text = typedCaption.trim();
+                  if (!text) return;
+                  setTypedCaption("");
+                  enqueue(() => sendCaption(text, "Typed"));
+                }}
+                className="flex gap-2 p-3 border-t border-board-line bg-black/15"
+              >
+                <label htmlFor="typed-caption" className="sr-only">Type a caption</label>
+                <div className="flex-1 flex items-center gap-2 h-11 px-3 rounded-[10px] border border-board-line focus-within:border-chalk-blue bg-board-2">
+                  <Keyboard className="w-4 h-4 text-chalk-dim flex-shrink-0" />
+                  <input
+                    id="typed-caption"
+                    value={typedCaption}
+                    onChange={(e) => setTypedCaption(e.target.value)}
+                    maxLength={500}
+                    autoComplete="off"
+                    placeholder="Type a caption and press Enter"
+                    className="flex-1 min-w-0 text-sm outline-none bg-transparent text-chalk placeholder:text-chalk-dim/70"
+                  />
+                </div>
+                <button type="submit" disabled={!typedCaption.trim()} className="cc-btn cc-btn-haldi h-11 px-4 text-xs">
+                  <Send className="w-4 h-4" />
+                  Send
+                </button>
+              </form>
+            </section>
+
+            {/* 3. Questions and Speak for Me */}
+            <section className="space-y-3">
+              <div className="flex items-end justify-between gap-2">
+                <div>
+                  <h2 className="text-2xl font-normal">Questions</h2>
+                  <p className="text-sm text-ink-3">Typed questions and Speak for Me requests from students</p>
+                </div>
+                <span className="font-mono text-sm text-ink-2">{unresolvedCount} open</span>
+              </div>
+
+              {blocked.count > 0 && (
+                <div className="flex items-start gap-2 p-3 rounded-[10px] bg-sindoor-wash border border-sindoor-line text-sm text-sindoor-deep">
+                  <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                  <p>
+                    <span className="font-semibold">
+                      {blocked.count} inappropriate {blocked.count === 1 ? "message" : "messages"} blocked
+                    </span>{" "}
+                    before reaching the queue or the speaker:{" "}
+                    {blocked.students.map((b) => `${b.name}${b.count > 1 ? ` (${b.count})` : ""}`).join(", ")}
+                  </p>
+                </div>
+              )}
+
+              {unresolvedCount === 0 && (
+                <p className="rounded-card border border-dashed border-rule-strong cc-kolam text-sm text-ink-3 text-center py-6 px-4">
+                  No questions yet. Student questions and Speak for Me requests appear here instantly.
+                </p>
+              )}
+              {questions.map((q) => {
+                if (q.resolved) return null;
+
+                return (
+                  <div key={q.id} className={`cc-card p-5 ${q.kind === "speak" ? "!border-neel-line border-l-4 !border-l-neel" : ""}`}>
+                    <div className="flex items-center justify-between mb-3 gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-paper-2 border border-rule-strong text-ink flex items-center justify-center font-heading text-sm flex-shrink-0">
+                          {q.studentName.slice(0, 1).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-semibold text-sm text-ink block truncate">{q.studentName}</span>
+                          <span className="text-[11px] text-ink-3">
+                            {q.seat ? `${q.seat} · ` : ""}
+                            {q.timeAgo}
+                          </span>
+                        </div>
+                      </div>
+
+                      {q.kind === "speak" ? (
+                        <span className="cc-stamp text-neel">
+                          <Volume2 className="w-3 h-3" />
+                          Speak for me
+                        </span>
+                      ) : (
+                        <span className="cc-stamp text-ink-3">Question</span>
+                      )}
+                    </div>
+
+                    <p className="font-heading text-xl leading-snug mb-4">&ldquo;{q.text}&rdquo;</p>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button onClick={() => playTTSAloud(q.text)} className="cc-btn cc-btn-primary h-10 px-4 text-xs">
+                        <Volume2 className="w-4 h-4" />
+                        <span>Play on classroom speakers</span>
+                      </button>
+
+                      <button onClick={() => markQuestionResolved(q.id)} className="cc-btn h-10 px-4 text-xs">
+                        <Check className="w-4 h-4 text-patta" />
+                        <span>Mark resolved</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </section>
           </div>
-        </section>
 
-        {/* 7. Instructor Quick Action Console matching Stitch */}
-        <section className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs space-y-3">
-          <h3 className="text-base font-bold text-[#0F172A] font-heading">
-            Instructor Quick Action Console
-          </h3>
-          <p className="text-xs text-[#64748B]">
-            Immediate triggers for multi-modal accessibility during instruction
-          </p>
+          {/* Right: controls and how the class is doing */}
+          <aside className="space-y-5 min-w-0">
+            {/* Join QR and PIN, always on screen so late students can scan it */}
+            {cls.classroom && <JoinQrCard pin={cls.classroom.join_code} onExpand={() => setShowQr(true)} />}
 
-          <div className="grid grid-cols-3 gap-2.5">
-            <button
-              onClick={toggleMic}
-              className={`h-24 rounded-2xl flex flex-col items-center justify-center gap-2 border font-bold text-xs transition active:scale-95 ${
-                micMuted
-                  ? "bg-[#FEF2F2] border-[#FECACA] text-[#DC2626]"
-                  : "bg-white border-[#CBD5E1] text-[#0F172A] hover:bg-[#F1F5F9]"
-              }`}
-            >
-              {micMuted ? <MicOff className="w-6 h-6 text-[#DC2626]" /> : <Mic className="w-6 h-6 text-[#475569]" />}
-              <span>{micMuted ? "Unmute Mic" : "Mute Mic"}</span>
-            </button>
+            {/* 4. Quick actions */}
+            <section className="grid grid-cols-3 gap-2.5">
+              <button
+                onClick={toggleMic}
+                className={`cc-btn h-20 flex-col gap-1.5 text-xs ${micMuted ? "cc-btn-sindoor" : ""}`}
+              >
+                {micMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5 text-ink-2" />}
+                <span>{micMuted ? "Unmute" : "Mute mic"}</span>
+              </button>
 
-            <input
-              ref={boardInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                e.target.value = "";
-                if (f) handleBoardPhoto(f);
-              }}
+              <input
+                ref={boardInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) handleBoardPhoto(f);
+                }}
+              />
+              <button
+                onClick={() => boardInputRef.current?.click()}
+                disabled={scanning}
+                className="cc-btn cc-btn-primary h-20 flex-col gap-1.5 text-xs"
+              >
+                <Scan className={`w-5 h-5 ${scanning ? "animate-pulse" : ""}`} />
+                <span>{scanning ? "Reading..." : "Scan board"}</span>
+              </button>
+
+              <button onClick={() => setShowQr(true)} className="cc-btn h-20 flex-col gap-1.5 text-xs">
+                <Share2 className="w-5 h-5 text-ink-2" />
+                <span>Join QR</span>
+              </button>
+
+              <button onClick={announce} className="cc-btn col-span-3 h-11 text-xs">
+                <Megaphone className="w-4 h-4 text-haldi-deep" />
+                <span>Send an announcement to every phone</span>
+              </button>
+            </section>
+
+            {/* 5. Confusion meter */}
+            <ConfusionMeter
+              count={confusionCount}
+              totalStudents={joinedCount}
+              lastSpikeTime={lastSpike ? formatTime(Math.round(lastSpike.offset_s)).replace(/^00:/, "") : undefined}
+              topic={lastSpike?.text ? spikeTopic : undefined}
             />
-            <button
-              onClick={() => boardInputRef.current?.click()}
-              disabled={scanning}
-              className="h-24 rounded-2xl bg-[#1E3A8A] hover:bg-[#00236F] text-white font-bold text-xs flex flex-col items-center justify-center gap-2 shadow-sm transition active:scale-95 disabled:opacity-70"
-            >
-              <Scan className={`w-6 h-6 ${scanning ? "animate-pulse" : ""}`} />
-              <span>{scanning ? "Reading Board..." : "Scan Board with AI"}</span>
-            </button>
 
-            <button
-              onClick={() => setShowQr(true)}
-              className="h-24 rounded-2xl bg-white border border-[#CBD5E1] hover:bg-[#F1F5F9] text-[#0F172A] font-bold text-xs flex flex-col items-center justify-center gap-2 transition active:scale-95"
-            >
-              <Share2 className="w-6 h-6 text-[#475569]" />
-              <span>Show Join QR</span>
-            </button>
-          </div>
+            {/* 6. Speaking pace */}
+            <PaceGauge wpm={wpm} />
 
-          <button
-            onClick={announce}
-            className="w-full h-12 rounded-xl bg-white border border-[#CBD5E1] hover:bg-[#F1F5F9] text-[#0F172A] font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95"
-          >
-            <Megaphone className="w-4 h-4 text-[#D97706]" />
-            <span>Broadcast Important Announcement</span>
-          </button>
-        </section>
+            {/* 7. Connection */}
+            <section className="cc-card p-5">
+              <div className="flex items-center justify-between mb-3">
+                <span className="cc-eyebrow">Connection</span>
+                <span className="font-mono text-xs text-patta">{stablePct}% delivered</span>
+              </div>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                <div>
+                  <dt className="text-xs text-ink-3">Caption delay</dt>
+                  <dd className={`font-mono font-semibold ${latencyMs !== null && latencyMs > 2500 ? "text-haldi-deep" : "text-ink"}`}>
+                    {latencyMs === null ? "Waiting" : `${latencyMs} ms`}
+                  </dd>
+                  {provider && <dd className="text-[11px] text-ink-3">{provider}</dd>}
+                </div>
+                <div>
+                  <dt className="text-xs text-ink-3">Read-aloud queue</dt>
+                  <dd className="font-semibold text-ink">{ttsQueue ? "Speaking" : "Clear"}</dd>
+                </div>
+              </dl>
+              <p className="mt-3 pt-3 border-t border-rule text-xs text-ink-3">
+                {captionError || `${streamed} caption${streamed === 1 ? "" : "s"} streamed · ${Object.keys(readersRef.current).length || 0} student language${Object.keys(readersRef.current).length === 1 ? "" : "s"} active`}
+              </p>
+            </section>
+          </aside>
+        </div>
       </main>
     </div>
   );
@@ -1069,7 +973,7 @@ export default function TeacherLiveClassroomPage({
   params: Promise<{ lectureId: string }>;
 }) {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-sm text-[#475569]">Loading instructor console...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-sm text-ink-2">Loading instructor console...</div>}>
       <TeacherLiveClassroomContent paramsPromise={params} />
     </Suspense>
   );

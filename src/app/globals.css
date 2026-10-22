@@ -1,67 +1,283 @@
 @import "tailwindcss";
 
+/*
+ * ClassCaption visual system: "Kagaz & Chalk".
+ * Warm notebook paper, indigo ink, vermilion and turmeric accents, and captions on a chalkboard.
+ * Colours are named after the materials of an Indian classroom: neel (indigo dye), sindoor
+ * (vermilion), haldi (turmeric), patta (leaf green) and the black-green of a school board.
+ */
+
 :root {
-  --font-display: var(--font-plus-jakarta-sans), system-ui, sans-serif;
-  --font-body: var(--font-inter), system-ui, sans-serif;
-
-  /* Stitch Design System Colors */
-  --bg-canvas: #F8FAFC;
-  --surface-card: #FFFFFF;
-  --surface-muted: #F1F5F9;
-  --border-subtle: #E2E8F0;
-  --border-medium: #CBD5E1;
-  --text-primary: #0F172A;
-  --text-secondary: #475569;
-  --text-muted: #64748B;
-
-  /* Brand Accents */
-  --primary-navy: #1E3A8A;
-  --primary-deep: #00236F;
-  --primary-light: #90A8FF;
-  --primary-fixed: #DCE1FF;
-  --emerald-live: #059669;
-  --emerald-bg: #ECFDF5;
-  --amber-warning: #D97706;
-  --amber-bg: #FEF3C7;
-  --crimson-alert: #DC2626;
-
-  /* Dark Viewport / High Contrast Stage */
-  --caption-stage-bg: #0B0F19;
-  --caption-stage-text: #F8FAFC;
-  --caption-stage-entity: #60A5FA;
-  --caption-stage-gloss: #34D399;
+  --script-fallbacks: var(--font-anek-deva), var(--font-anek-bangla), var(--font-anek-tamil), var(--font-anek-telugu),
+    var(--font-anek-gujarati), var(--font-anek-kannada), var(--font-anek-malayalam), var(--font-anek-gurmukhi),
+    var(--font-anek-odia), "Noto Sans", "Nirmala UI", system-ui, sans-serif;
+  --font-display: var(--font-fraunces), var(--font-tiro-deva), Georgia, var(--script-fallbacks);
+  --font-body: var(--font-anek-latin), var(--script-fallbacks);
+  --font-code: var(--font-jetbrains), ui-monospace, monospace;
 }
 
 @theme {
   --font-sans: var(--font-body);
   --font-display: var(--font-display);
-  --color-canvas: #F8FAFC;
-  --color-card: #FFFFFF;
-  --color-surface-muted: #F1F5F9;
-  --color-border-subtle: #E2E8F0;
-  --color-border-medium: #CBD5E1;
-  --color-text-primary: #0F172A;
-  --color-text-secondary: #475569;
-  --color-primary-navy: #1E3A8A;
-  --color-primary-deep: #00236F;
-  --color-emerald-live: #059669;
-  --color-amber-warning: #D97706;
-  --color-stage-bg: #0B0F19;
+  --font-heading: var(--font-display);
+  --font-mono: var(--font-code);
+
+  /* Paper */
+  --color-paper: #f5efe3;
+  --color-paper-2: #ece3d1;
+  --color-paper-3: #e3d7c0;
+  --color-card: #fffcf5;
+  --color-rule: #ddd1ba;
+  --color-rule-strong: #c4b496;
+
+  /* Ink */
+  --color-ink: #1b1d33;
+  --color-ink-2: #45475c;
+  --color-ink-3: #6e6a5e;
+  --color-ink-4: #9c9584;
+
+  /* Neel: indigo, the primary */
+  --color-neel: #2b3990;
+  --color-neel-deep: #1d276b;
+  --color-neel-bright: #3e51c2;
+  --color-neel-wash: #e6e6f3;
+  --color-neel-line: #c3c6e6;
+
+  /* Sindoor: vermilion, for live and alerts */
+  --color-sindoor: #c8402a;
+  --color-sindoor-deep: #8f2a1a;
+  --color-sindoor-wash: #f9e3dc;
+  --color-sindoor-line: #efb9aa;
+
+  /* Haldi: turmeric, for attention */
+  --color-haldi: #e0a127;
+  --color-haldi-deep: #a86c0b;
+  --color-haldi-ink: #6b4306;
+  --color-haldi-wash: #fbedc8;
+  --color-haldi-line: #f0cf7f;
+
+  /* Patta: leaf green, for success */
+  --color-patta: #1f7a5a;
+  --color-patta-deep: #145a41;
+  --color-patta-wash: #dcefe4;
+  --color-patta-line: #a9d6bd;
+
+  /* The chalkboard */
+  --color-board: #1e2a25;
+  --color-board-2: #27352f;
+  --color-board-line: #3a4a42;
+  --color-chalk: #f2eee3;
+  --color-chalk-dim: #b9bdb0;
+  --color-chalk-yellow: #f3d77e;
+  --color-chalk-blue: #a8c8e8;
+  --color-chalk-pink: #f0a99a;
+  --color-chalk-green: #a6dcb8;
+
+  --radius-card: 14px;
+}
+
+html {
+  background-color: var(--color-paper);
 }
 
 body {
-  background-color: var(--bg-canvas);
-  color: var(--text-primary);
+  background-color: var(--color-paper);
+  color: var(--color-ink);
   font-family: var(--font-body);
+  font-feature-settings: "kern";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-h1, h2, h3, h4, h5, h6, .font-heading {
-  font-family: var(--font-display);
+@layer base {
+  h1, h2, h3, h4, h5, h6, .font-heading {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    font-variation-settings: "SOFT" 50;
+    letter-spacing: -0.01em;
+  }
 }
 
-/* Custom Scrollbar for mobile/desktop language pills and caption feeds */
+::selection {
+  background: var(--color-haldi-line);
+  color: var(--color-ink);
+}
+
+@layer components {
+/* ---------- Surfaces ---------- */
+
+/* A sheet of paper with a soft printed edge. */
+.cc-card {
+  background: var(--color-card);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-card);
+  box-shadow: 0 1px 0 var(--color-rule), 0 12px 24px -18px rgb(27 29 51 / 0.25);
+}
+
+/* A notebook page: faint ruled lines and the red double margin of an Indian school copy. */
+.cc-notebook {
+  background-color: var(--color-card);
+  background-image:
+    linear-gradient(to right, transparent 34px, #e9a596 34px, #e9a596 35px, transparent 35px, transparent 38px, #e9a596 38px, #e9a596 39px, transparent 39px),
+    repeating-linear-gradient(to bottom, transparent 0, transparent 27px, #d8e0ea 27px, #d8e0ea 28px);
+  background-position: 0 0, 0 12px;
+}
+
+/* The chalkboard the captions are written on. */
+.cc-board {
+  background-color: var(--color-board);
+  background-image:
+    radial-gradient(ellipse at 20% 0%, rgb(255 255 255 / 0.06), transparent 55%),
+    radial-gradient(ellipse at 90% 100%, rgb(255 255 255 / 0.04), transparent 50%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  color: var(--color-chalk);
+  border-radius: var(--radius-card);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06), 0 18px 30px -20px rgb(15 20 18 / 0.6);
+}
+
+/* Kolam dots: a quiet dot grid for dark or empty areas. */
+.cc-kolam {
+  background-image: radial-gradient(circle, rgb(27 29 51 / 0.14) 1.2px, transparent 1.6px);
+  background-size: 18px 18px;
+}
+.cc-kolam-light {
+  background-image: radial-gradient(circle, rgb(255 255 255 / 0.12) 1.2px, transparent 1.6px);
+  background-size: 18px 18px;
+}
+
+/* A woven border strip, like the edge of a cotton saree, used under page headers. */
+.cc-border-strip {
+  height: 8px;
+  background-color: var(--color-neel);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='8'%3E%3Crect width='24' height='8' fill='%232b3990'/%3E%3Cpath d='M0 4 L4 0 L8 4 L4 8Z' fill='%23e0a127'/%3E%3Ccircle cx='16' cy='4' r='1.6' fill='%23c8402a'/%3E%3Crect y='0' width='24' height='1' fill='%231d276b'/%3E%3Crect y='7' width='24' height='1' fill='%231d276b'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+}
+
+/* ---------- Type ---------- */
+
+/* Small caps labels: "01 · Student", "Caption language". */
+.cc-eyebrow {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+
+/* A hand-drawn turmeric underline for one important word. */
+.cc-underline {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 12' preserveAspectRatio='none'%3E%3Cpath d='M2 8 C 40 3, 90 3, 120 6 S 180 10, 198 4' stroke='%23e0a127' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: 100% 0.32em;
+  background-position: 0 92%;
+  padding-bottom: 0.08em;
+}
+
+/* A technical term in a caption: underlined like a teacher would on the board. */
+.cc-term {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--color-chalk-yellow);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 6px;
+  color: var(--color-chalk-yellow);
+}
+.cc-term-light {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--color-haldi);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 6px;
+  color: var(--color-neel);
+}
+
+/* ---------- Controls ---------- */
+
+/* Buttons are printed blocks: solid ink edge and a short hard shadow that presses in on tap. */
+.cc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 10px;
+  border: 1.5px solid var(--color-ink);
+  background: var(--color-card);
+  color: var(--color-ink);
+  font-weight: 600;
+  box-shadow: 2px 2px 0 var(--color-ink);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.15s ease;
+}
+.cc-btn:hover { background: var(--color-paper-2); }
+.cc-btn:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--color-ink); }
+.cc-btn:disabled { opacity: 0.5; transform: none; box-shadow: 2px 2px 0 var(--color-ink); cursor: not-allowed; }
+.cc-btn-primary { background: var(--color-neel); color: #fff; }
+.cc-btn-primary:hover { background: var(--color-neel-deep); }
+.cc-btn-sindoor { background: var(--color-sindoor); color: #fff; }
+.cc-btn-sindoor:hover { background: var(--color-sindoor-deep); }
+.cc-btn-haldi { background: var(--color-haldi); color: var(--color-ink); }
+.cc-btn-haldi:hover { background: #d39417; }
+.cc-btn-patta { background: var(--color-patta); color: #fff; }
+.cc-btn-patta:hover { background: var(--color-patta-deep); }
+
+.cc-input {
+  border-radius: 10px;
+  border: 1.5px solid var(--color-rule-strong);
+  background: var(--color-card);
+  color: var(--color-ink);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.cc-input:focus { border-color: var(--color-neel); box-shadow: 0 0 0 3px var(--color-neel-wash); }
+.cc-input::placeholder { color: var(--color-ink-4); }
+
+/* A rubber stamp: "LIVE", "ENDED", "PIN". */
+.cc-stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.55rem;
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
+  font-family: var(--font-code);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+
+/* A plain tag. */
+.cc-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-rule-strong);
+  background: var(--color-paper);
+  color: var(--color-ink-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Scrolling ribbon of language names in their own scripts. */
+@keyframes cc-ribbon {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.cc-ribbon-track {
+  display: flex;
+  width: max-content;
+  animation: cc-ribbon 60s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cc-ribbon-track { animation: none; }
+}
+
+}
+
+/* Hide scrollbars on language pills and caption feeds */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -70,7 +286,6 @@ h1, h2, h3, h4, h5, h6, .font-heading {
   scrollbar-width: none;
 }
 
-/* Subtle glowing animations */
 @keyframes live-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(0.92); }
@@ -89,8 +304,52 @@ h1, h2, h3, h4, h5, h6, .font-heading {
 .animate-soundwave-2 { animation: soundwave 0.8s ease-in-out infinite 0.2s; }
 .animate-soundwave-3 { animation: soundwave 1.4s ease-in-out infinite 0.4s; }
 
-/* Interactive focus ring for WCAG AAA standards */
+/* A new caption line settles in like chalk being written. */
+@keyframes chalk-in {
+  from { opacity: 0; transform: translateY(4px); filter: blur(1px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+.animate-chalk-in { animation: chalk-in 0.35s ease-out both; }
+
+/* Story sections fade up as they scroll into view; words can be staggered with transition-delay. */
+.cc-reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1), filter 0.8s ease;
+}
+.cc-in .cc-reveal, .cc-reveal.cc-in {
+  opacity: 1;
+  transform: none;
+}
+.cc-word {
+  display: inline-block;
+  opacity: 0;
+  filter: blur(6px);
+  transform: translateY(6px);
+  transition: opacity 0.6s ease, filter 0.6s ease, transform 0.6s ease;
+}
+.cc-in .cc-word {
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+/* Words that reach a student but do not land. */
+.cc-lost-word {
+  display: inline-block;
+  transition: opacity 1.2s ease, filter 1.2s ease, transform 1.2s ease;
+}
+.cc-in .cc-lost-word {
+  opacity: var(--o, 0.35);
+  filter: blur(var(--b, 1.5px));
+  transform: translate(var(--x, 0), var(--y, 0)) rotate(var(--r, 0deg));
+}
+@media (prefers-reduced-motion: reduce) {
+  .cc-reveal, .cc-word, .cc-lost-word { transition: none; }
+  .cc-reveal, .cc-word { opacity: 1; filter: none; transform: none; }
+}
+
+/* Visible focus for keyboard users */
 *:focus-visible {
-  outline: 2px solid #1E3A8A !important;
+  outline: 2.5px solid var(--color-haldi) !important;
   outline-offset: 2px !important;
 }

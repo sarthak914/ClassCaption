@@ -5,6 +5,7 @@ import { toWhisperChunks } from "./media";
 import { generateNotes, type Notes, type Seg } from "./ai/lecture";
 import { translateMany } from "./translate";
 import { HttpError } from "./http";
+import { dropIndex } from "./rag";
 
 export type SegmentRow = Seg & { translations: Record<string, string> };
 
@@ -64,6 +65,7 @@ export async function processUpload(id: string, language?: string) {
     const tr = { duration, language: detected };
     const segs = whisper.filter((s) => s.text).map((s, idx) => ({ lecture_id: id, idx, start_s: s.start, end_s: s.end, text: s.text }));
     await db.from("segments").delete().eq("lecture_id", id);
+    await dropIndex(id);
     if (segs.length) {
       const { error: insErr } = await db.from("segments").insert(segs);
       if (insErr) throw insErr;

@@ -9,6 +9,7 @@ import { TermModal } from "@/components/live/TermModal";
 import { SpeakForMeModal } from "@/components/live/SpeakForMeModal";
 import { AskQuestionModal } from "@/components/live/AskQuestionModal";
 import { createClient } from "@/lib/supabase/client";
+import { useWakeLock } from "@/lib/client/wakeLock";
 import { LanguageCode, LANGUAGES } from "@/lib/languages";
 import { api, isUuid, needsAuth, pref, setPref, sourceLabel, speak as speakAloud, techTerms } from "@/lib/client/api";
 import {
@@ -19,6 +20,8 @@ import {
   Radio,
   Wifi,
   SunMoon,
+  Megaphone,
+  Check,
 } from "lucide-react";
 
 interface LiveCaptionEvent {
@@ -98,6 +101,8 @@ function StudentLiveLectureContent({
   const [board, setBoard] = useState<Board | null>(null);
   const [studentName, setStudentName] = useState("");
   const [needJoin, setNeedJoin] = useState(false);
+  // Keep the phone screen on while captions are coming in.
+  useWakeLock(!!cls && isLive);
 
   // Live Captions Feed State
   const [captions, setCaptions] = useState<LiveCaptionEvent[]>([]);
@@ -349,10 +354,9 @@ function StudentLiveLectureContent({
         <button
           key={i}
           onClick={() => openTerm(part, context)}
-          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-[#1E3A8A] text-[#90A8FF] font-bold underline underline-offset-4 hover:bg-[#2563EB] hover:text-white transition"
+          className={`${highContrast ? "cc-term hover:bg-white/10" : "cc-term-light hover:bg-neel-wash"} rounded px-0.5 font-semibold transition`}
         >
-          <span>{part}</span>
-          <Sparkles className="w-3.5 h-3.5" />
+          {part}
         </button>
       ) : (
         <span key={i}>{part}</span>
@@ -362,12 +366,12 @@ function StudentLiveLectureContent({
 
   if (needJoin) {
     return (
-      <div className="min-h-screen bg-[#F8FAFC] pb-28 text-[#0F172A]">
-        <Navbar title="ClassCaption" subtitle="Assistive Lecture Stream" />
-        <main className="max-w-2xl mx-auto px-4 py-4">
-          <section className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs text-center space-y-3">
-            <p className="text-sm text-[#475569]">Join this class with the PIN or QR code your teacher shows on the screen.</p>
-            <a href="/join" className="inline-flex h-11 px-5 rounded-xl bg-[#1E3A8A] text-white font-bold text-sm items-center">Join with PIN</a>
+      <div className="min-h-screen bg-paper pb-28 text-ink">
+        <Navbar title="ClassCaption" subtitle="Live lecture captions" />
+        <main className="max-w-2xl mx-auto px-4 py-6">
+          <section className="cc-card p-6 text-center space-y-4">
+            <p className="text-ink-2">Join this class with the PIN or QR code your teacher shows on the screen.</p>
+            <a href="/join" className="cc-btn cc-btn-primary h-11 px-5 text-sm">Join with PIN</a>
           </section>
         </main>
       </div>
@@ -376,15 +380,15 @@ function StudentLiveLectureContent({
 
   if (!classId || !cls) {
     return (
-      <div className="min-h-screen bg-[#F8FAFC] pb-28 text-[#0F172A]">
-        <Navbar title="ClassCaption" subtitle="Assistive Lecture Stream" />
-        <main className="max-w-2xl mx-auto px-4 py-4">
-          <section className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs text-center space-y-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F1F5F9] text-[#475569] text-xs font-extrabold">
-              <span className="w-2 h-2 rounded-full bg-[#94A3B8] animate-pulse" />
-              WAITING FOR TEACHER
+      <div className="min-h-screen bg-paper pb-28 text-ink">
+        <Navbar title="ClassCaption" subtitle="Live lecture captions" />
+        <main className="max-w-2xl mx-auto px-4 py-6">
+          <section className="cc-board cc-kolam-light p-8 text-center space-y-3">
+            <span className="cc-stamp text-chalk-dim">
+              <span className="w-1.5 h-1.5 rounded-full bg-chalk-dim animate-live-pulse" />
+              Waiting for teacher
             </span>
-            <p className="text-sm text-[#475569]">{waitingMsg || "Connecting to the live lecture..."}</p>
+            <p className="text-chalk-dim">{waitingMsg || "Connecting to the live lecture..."}</p>
           </section>
         </main>
         <BottomNav currentTab="classes" />
@@ -393,133 +397,107 @@ function StudentLiveLectureContent({
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-28 text-[#0F172A]">
+    <div className="min-h-screen bg-paper pb-28 text-ink">
       <Navbar
         title="ClassCaption"
-        subtitle="Assistive Lecture Stream"
+        subtitle="Live lecture captions"
         selectedLang={(() => { const l = LANGUAGES.find((x) => x.code === selectedLang); return l ? `${l.name} (${l.native})` : selectedLang.toUpperCase(); })()}
       />
 
-      <main className="max-w-2xl mx-auto px-4 py-4 space-y-4">
-        {/* 1. Lecture Metadata Header Card matching Stitch */}
-        <section className="bg-white rounded-3xl border border-[#E2E8F0] p-5 shadow-xs">
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <h1 className="text-lg sm:text-xl font-extrabold text-[#0F172A] font-heading leading-tight">
-              {cls.classroom?.name ?? cls.title}
-            </h1>
-            <span className="px-3 py-1 rounded-full bg-[#EFF6FF] text-[#1E40AF] text-xs font-bold whitespace-nowrap">
-              {cls.classroom?.subject_code || "Live"}
+      <main className="max-w-2xl mx-auto px-4 py-5 space-y-5">
+        {/* 1. Lecture header */}
+        <section className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`cc-stamp ${isLive ? "text-sindoor" : "text-ink-3"}`}>
+              {isLive && <span className="w-1.5 h-1.5 rounded-full bg-sindoor animate-live-pulse" />}
+              {isLive ? `Live · ${liveMins}m` : "Ended"}
+            </span>
+            {cls.classroom?.subject_code && <span className="cc-stamp text-neel">{cls.classroom.subject_code}</span>}
+            <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-ink-3 font-mono">
+              <Wifi className="w-3.5 h-3.5 text-patta" />
+              {pingMs === null ? "--" : pingMs} ms
             </span>
           </div>
-
-          <p className="text-xs text-[#475569] font-medium mb-3">
-            {cls.classroom ? cls.title : "Live Lecture"}{cls.classroom?.room ? ` • ${cls.classroom.room}` : ""}
+          <h1 className="text-[1.75rem] sm:text-3xl font-medium leading-tight">
+            {cls.classroom?.name ?? cls.title}
+          </h1>
+          <p className="text-sm text-ink-3">
+            {cls.classroom ? cls.title : "Live Lecture"}{cls.classroom?.room ? ` · ${cls.classroom.room}` : ""}
+            <span className="mx-1.5 text-rule-strong">|</span>
+            <Radio className="w-3.5 h-3.5 inline -mt-0.5 text-sindoor" /> Teacher speaks <span className="text-ink font-semibold">{srcLabel}</span>
           </p>
-
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FEF2F2] text-[#DC2626] text-xs font-extrabold border border-[#FECACA]">
-              <span className="w-2 h-2 rounded-full bg-[#DC2626] animate-pulse" />
-              {isLive ? `LIVE • ${liveMins}m` : "ENDED"}
-            </span>
-
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ECFDF5] text-[#065F46] text-xs font-bold border border-[#A7F3D0]">
-              <Wifi className="w-3.5 h-3.5" />
-              {pingMs === null ? "--" : pingMs}ms ping
-            </span>
-          </div>
-
-          <div className="pt-3 border-t border-[#E2E8F0] flex items-center justify-between text-xs text-[#475569]">
-            <span className="font-semibold flex items-center gap-1">
-              <Radio className="w-3.5 h-3.5 text-[#1E3A8A]" />
-              Source: <span className="text-[#0F172A] font-bold">{srcLabel}</span>
-            </span>
-            <span className="px-2 py-0.5 rounded-md bg-[#EFF6FF] text-[#1E40AF] font-bold text-[11px]">
-              Live Speech-to-Text
-            </span>
-          </div>
         </section>
 
-        {/* 2. Language Selector Bar matching Stitch */}
+        {/* 2. Language picker */}
         <section className="space-y-2">
-          <div className="flex items-center justify-between text-xs px-1">
-            <span className="font-bold text-[#0F172A] flex items-center gap-1.5">
-              <span>Live AI Translation</span>
-            </span>
-            <span className="text-[#059669] font-extrabold flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#059669]" />
-              {captions.length} Lines Captioned
+          <div className="flex items-center justify-between px-0.5">
+            <span className="cc-eyebrow">Captions in</span>
+            <span className="text-xs text-ink-3">
+              <span className="font-mono font-bold text-patta">{captions.length}</span> lines so far
             </span>
           </div>
 
           <LanguageSelector selected={selectedLang} onChange={changeLang} />
         </section>
 
-        {/* 3. Dedicated High-Contrast Live Caption Viewport matching Stitch */}
+        {/* 3. The chalkboard: live captions */}
         <section
-          className={`rounded-3xl border transition-all duration-300 overflow-hidden shadow-lg ${
-            highContrast
-              ? "bg-[#0B0F19] text-[#F8FAFC] border-white/10"
-              : "bg-white text-[#0F172A] border-[#CBD5E1]"
+          className={`overflow-hidden transition-colors duration-300 ${
+            highContrast ? "cc-board" : "cc-card cc-notebook"
           }`}
         >
-          {/* Caption Viewport Top Controls */}
+          {/* Board controls */}
           <div
-            className={`px-4 py-3 flex items-center justify-between border-b ${
-              highContrast ? "border-white/10 bg-white/5" : "border-[#E2E8F0] bg-[#F8FAFC]"
+            className={`px-4 py-2.5 flex items-center justify-between border-b ${
+              highContrast ? "border-board-line" : "border-rule"
             }`}
           >
-            <div className="flex items-center gap-2">
-              <span className="px-3 py-1 rounded-xl bg-[#1E3A8A] text-white text-xs font-bold flex items-center gap-1.5">
-                <Radio className="w-3.5 h-3.5" />
-                Real-Time Captions
-              </span>
-            </div>
+            <span className={`text-[11px] font-mono uppercase tracking-[0.16em] ${highContrast ? "text-chalk-dim" : "text-ink-3"}`}>
+              Live captions
+            </span>
 
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setAutoScroll(!autoScroll)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 border transition ${
+                className={`px-2.5 h-7 rounded-md text-[11px] font-semibold border transition ${
                   autoScroll
-                    ? "bg-[#059669]/20 text-[#34D399] border-[#059669]/40"
-                    : "bg-white/10 text-gray-400 border-white/10"
+                    ? highContrast ? "border-chalk-green/50 text-chalk-green" : "border-patta-line text-patta bg-patta-wash"
+                    : highContrast ? "border-board-line text-chalk-dim" : "border-rule text-ink-3"
                 }`}
               >
-                <span>Auto-Scroll: {autoScroll ? "ON" : "OFF"}</span>
+                Auto-scroll {autoScroll ? "on" : "off"}
               </button>
 
               <button
                 onClick={() => setHighContrast(!highContrast)}
-                title="Toggle Stage Contrast Mode"
-                className="w-8 h-8 rounded-lg flex items-center justify-center bg-white/10 hover:bg-white/20 text-white transition"
+                title={highContrast ? "Switch to paper" : "Switch to chalkboard"}
+                aria-label="Toggle board or paper view"
+                className={`w-7 h-7 rounded-md flex items-center justify-center border transition ${
+                  highContrast ? "border-board-line text-chalk hover:bg-white/10" : "border-rule text-ink-2 hover:bg-paper-2"
+                }`}
               >
                 <SunMoon className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {/* Caption Streaming Stage */}
-          <div className="p-5 space-y-4 max-h-[380px] overflow-y-auto no-scrollbar">
-            {/* Spoken Source Audio Box */}
-            <div
-              className={`rounded-2xl p-3.5 border ${
-                highContrast
-                  ? "bg-white/5 border-white/10 text-gray-300"
-                  : "bg-[#F1F5F9] border-[#CBD5E1] text-[#475569]"
-              }`}
-            >
-              <div className="flex items-center gap-1.5 text-[11px] font-mono text-[#60A5FA] mb-1 font-bold">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#60A5FA] animate-pulse" />
-                Spoken {srcLabel}:
+          {/* Caption stream */}
+          <div className={`py-5 pr-5 space-y-4 max-h-[420px] overflow-y-auto no-scrollbar ${highContrast ? "pl-5" : "pl-14"}`}>
+            {/* What the teacher is saying right now */}
+            <div className={`border-l-2 pl-3 ${highContrast ? "border-chalk-blue/60" : "border-neel-line"}`}>
+              <div className={`flex items-center gap-1.5 text-[11px] font-mono mb-0.5 ${highContrast ? "text-chalk-blue" : "text-neel"}`}>
+                <span className={`inline-block w-1.5 h-1.5 rounded-full animate-pulse ${highContrast ? "bg-chalk-blue" : "bg-neel"}`} />
+                Teacher, in {srcLabel}
               </div>
-              <p className="text-xs italic leading-relaxed">
+              <p className={`font-heading italic text-[15px] leading-relaxed ${highContrast ? "text-chalk/80" : "text-ink-2"}`}>
                 &ldquo;{activeSpokenText}&rdquo;
               </p>
             </div>
 
-            {/* Rendered Live Translated Sentences with Interactive Term Glosser */}
-            <div className="space-y-4 pt-1">
+            {/* Captions in my language; technical terms are tappable */}
+            <div className="space-y-4 pt-1" lang={selectedLang}>
               {captions.length === 0 && (
-                <p className="text-sm text-gray-400">Captions will appear here as soon as the teacher speaks.</p>
+                <p className={highContrast ? "text-chalk-dim" : "text-ink-3"}>Captions will appear here as soon as the teacher speaks.</p>
               )}
               {captions.map((cap, idx) => {
                 const isLatest = idx === captions.length - 1;
@@ -527,15 +505,12 @@ function StudentLiveLectureContent({
                   cap.translations[selectedLang] || cap.translations["en"] || cap.sourceText;
 
                 return (
-                  <div
-                    key={cap.seq}
-                    className={`transition-opacity duration-300 ${
-                      isLatest ? "opacity-100" : "opacity-80"
-                    }`}
-                  >
+                  <div key={cap.seq} className={isLatest ? "animate-chalk-in" : ""}>
                     <p
-                      className={`font-semibold leading-relaxed tracking-wide ${
-                        isLatest ? `text-xl sm:text-2xl font-heading ${highContrast ? "text-white" : "text-[#0F172A]"}` : `text-base ${highContrast ? "text-gray-300" : "text-[#475569]"}`
+                      className={`leading-relaxed ${
+                        isLatest
+                          ? `text-[1.45rem] sm:text-[1.7rem] font-medium ${highContrast ? "text-chalk" : "text-ink"}`
+                          : `text-[1.05rem] ${highContrast ? "text-chalk-dim" : "text-ink-3"}`
                       }`}
                     >
                       {renderWithTerms(translated, cap.sourceText)}
@@ -547,38 +522,39 @@ function StudentLiveLectureContent({
             </div>
           </div>
 
-          {/* Embedded Sticky Glossary Drawer matching Stitch */}
+          {/* Term drawer */}
           <div
-            className={`p-4 border-t flex items-center justify-between gap-3 ${
-              highContrast ? "border-white/10 bg-white/5 text-white" : "border-[#E2E8F0] bg-[#F8FAFC]"
+            className={`px-4 py-3 border-t flex items-center justify-between gap-3 ${
+              highContrast ? "border-board-line bg-black/15" : "border-rule bg-paper"
             }`}
           >
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#60A5FA]" />
-              <div>
-                <span className="font-bold text-xs block text-[#60A5FA]">
-                  Active Technical Term: {activeTerms[0] ?? "None yet"}
-                </span>
-                <span className="text-[11px] text-gray-300">
-                  Tap highlight above for 1-sentence definition
-                </span>
-              </div>
+            <div className="min-w-0">
+              <span className={`text-[11px] font-mono uppercase tracking-[0.14em] block ${highContrast ? "text-chalk-dim" : "text-ink-3"}`}>
+                Word to know
+              </span>
+              <span className={`font-semibold block truncate ${highContrast ? "text-chalk-yellow" : "text-neel"}`}>
+                {activeTerms[0] ?? "None yet"}
+              </span>
             </div>
 
             <button
               onClick={() => activeTerms[0] && openTerm(activeTerms[0], latest?.sourceText)}
               disabled={!activeTerms[0]}
-              className="px-3 py-1.5 rounded-xl bg-[#1E3A8A] text-white font-bold text-xs hover:bg-[#2563EB] transition active:scale-95 disabled:opacity-50"
+              className="cc-btn cc-btn-haldi h-9 px-3.5 text-xs flex-shrink-0"
             >
-              Explain Term
+              <Sparkles className="w-3.5 h-3.5" />
+              Explain
             </button>
           </div>
         </section>
 
         {/* Teacher announcement */}
         {announcement && (
-          <section className="bg-[#FEF3C7] border-2 border-[#D97706] rounded-2xl p-4 flex items-start justify-between gap-3 text-[#92400E]">
-            <p className="text-sm font-bold">📢 {announcement}</p>
+          <section className="bg-haldi-wash border-[1.5px] border-haldi rounded-[var(--radius-card)] p-4 flex items-start justify-between gap-3 text-haldi-ink">
+            <p className="text-[15px] font-semibold flex items-start gap-2">
+              <Megaphone className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              {announcement}
+            </p>
             <button onClick={() => setAnnouncement("")} className="text-xs font-bold underline flex-shrink-0">
               Dismiss
             </button>
@@ -587,11 +563,11 @@ function StudentLiveLectureContent({
 
         {/* Board capture pushed by the teacher */}
         {board && (
-          <section className="bg-white rounded-3xl border border-[#E2E8F0] p-5 shadow-xs space-y-3">
+          <section className="cc-card p-5 space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#1E3A8A]" />
-                <h3 className="text-base font-bold text-[#0F172A] font-heading">Board: {board.title}</h3>
+              <div>
+                <span className="cc-eyebrow">From the board</span>
+                <h3 className="text-lg font-medium">{board.title}</h3>
               </div>
               <button
                 onClick={() =>
@@ -600,71 +576,59 @@ function StudentLiveLectureContent({
                     LANGUAGES.find((l) => l.code === selectedLang)?.speech ?? "en-IN",
                   )
                 }
-                className="px-3 py-1.5 rounded-xl bg-[#F1F5F9] text-[#0F172A] font-bold text-xs flex items-center gap-1.5 hover:bg-[#E2E8F0] transition active:scale-95"
+                className="cc-btn h-9 px-3 text-xs"
               >
-                <Volume2 className="w-4 h-4 text-[#1E3A8A]" />
-                Read Aloud
+                <Volume2 className="w-4 h-4 text-neel" />
+                Read aloud
               </button>
             </div>
-            <p className="text-sm text-[#0F172A] font-medium leading-relaxed">{board.explanation}</p>
+            <p className="text-[15px] leading-relaxed">{board.explanation}</p>
             {board.equations.length > 0 && (
               <div className="space-y-1.5">
                 {board.equations.map((e, i) => (
-                  <div key={i} className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
-                    <code className="font-mono text-xs font-bold text-[#1E3A8A] block">{e.latex}</code>
-                    <span className="text-xs text-[#475569]">{e.spoken}</span>
+                  <div key={i} className="p-3 rounded-lg bg-board text-chalk">
+                    <code className="font-mono text-xs font-bold text-chalk-yellow block">{e.latex}</code>
+                    <span className="text-xs text-chalk-dim">{e.spoken}</span>
                   </div>
                 ))}
               </div>
             )}
             {board.diagrams.map((d, i) => (
-              <p key={i} className="text-xs text-[#475569] leading-relaxed">
-                <span className="font-bold text-[#0F172A]">Diagram {i + 1}: </span>
+              <p key={i} className="text-sm text-ink-2 leading-relaxed">
+                <span className="font-semibold text-ink">Diagram {i + 1}: </span>
                 {d.description}
               </p>
             ))}
-            <details className="text-xs text-[#475569]">
-              <summary className="font-bold text-[#1E3A8A] cursor-pointer">Text on the board</summary>
+            <details className="text-sm text-ink-2">
+              <summary className="font-semibold text-neel cursor-pointer">Text on the board</summary>
               <pre className="whitespace-pre-wrap font-sans mt-2">{board.text}</pre>
             </details>
           </section>
         )}
 
-        {/* 4. Student Big-Target Action Controls matching Stitch */}
-        <section className="space-y-3 pt-2">
-          {/* "I'm Lost" Big Trigger Button */}
+        {/* 4. Big-target actions */}
+        <section className="space-y-3 pt-1">
           <button
             onClick={handleLostPing}
             disabled={lostFeedbackSent}
-            className={`w-full h-15 rounded-2xl font-extrabold text-base flex items-center justify-center gap-2 border-2 shadow-sm transition active:scale-95 ${
-              lostFeedbackSent
-                ? "bg-[#D1FAE5] border-[#059669] text-[#065F46]"
-                : "bg-[#FEF3C7] border-[#D97706] text-[#92400E] hover:bg-[#FDE68A]"
-            }`}
+            className={`cc-btn w-full h-15 text-base ${lostFeedbackSent ? "cc-btn-patta" : "cc-btn-haldi"}`}
           >
-            <HelpCircle className="w-5 h-5" />
+            {lostFeedbackSent ? <Check className="w-5 h-5" /> : <HelpCircle className="w-5 h-5" />}
             <span>
-              {lostFeedbackSent ? "✓ Confusion Ping Sent to Teacher!" : "I'm Lost (Send Anonymous Ping)"}
+              {lostFeedbackSent ? "Sent. Your teacher knows someone is lost." : "I'm lost"}
             </span>
+            {!lostFeedbackSent && <span className="text-xs font-medium opacity-70">(anonymous)</span>}
           </button>
 
           <div className="grid grid-cols-2 gap-3">
-            {/* Speak for Me TTS Trigger */}
-            <button
-              onClick={() => setSpeakModalOpen(true)}
-              className="h-14 rounded-2xl bg-[#1E3A8A] hover:bg-[#00236F] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition active:scale-95"
-            >
+            <button onClick={() => setSpeakModalOpen(true)} className="cc-btn cc-btn-primary h-14 text-sm">
               <Volume2 className="w-4 h-4" />
               <span>Speak for Me</span>
             </button>
 
-            {/* Ask Question Trigger */}
-            <button
-              onClick={() => setAskModalOpen(true)}
-              className="h-14 rounded-2xl bg-white hover:bg-[#F1F5F9] border-2 border-[#CBD5E1] text-[#0F172A] font-bold text-sm flex items-center justify-center gap-2 transition active:scale-95"
-            >
-              <MessageSquarePlus className="w-4 h-4 text-[#1E3A8A]" />
-              <span>Ask Question</span>
+            <button onClick={() => setAskModalOpen(true)} className="cc-btn h-14 text-sm">
+              <MessageSquarePlus className="w-4 h-4 text-neel" />
+              <span>Ask a question</span>
             </button>
           </div>
         </section>
@@ -705,7 +669,7 @@ export default function StudentLiveLecturePage({
   params: Promise<{ lectureId: string }>;
 }) {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-sm text-[#475569]">Loading live stream...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-sm text-ink-3">Loading live stream...</div>}>
       <StudentLiveLectureContent paramsPromise={params} />
     </Suspense>
   );

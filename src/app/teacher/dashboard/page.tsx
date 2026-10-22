@@ -11,15 +11,10 @@ import { SPEECH_LANGS, speechLang } from "@/lib/languages";
 import {
   BookA,
   Plus,
-  Play,
   QrCode,
-  Users,
   Video,
   Radio,
-  BookOpen,
   ArrowRight,
-  Sparkles,
-  Layers,
   Upload,
   LogOut,
 } from "lucide-react";
@@ -211,57 +206,47 @@ export default function TeacherDashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-24 text-[#0F172A]">
-      <Navbar title="ClassCaption" subtitle="Instructor Portal" homeHref="/teacher/dashboard" />
+    <div className="min-h-screen bg-paper pb-24 text-ink">
+      <Navbar title="ClassCaption" subtitle="Teacher's desk" homeHref="/teacher/dashboard" />
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-        {/* Welcome Header Banner */}
-        <section className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        {/* Welcome header */}
+        <section className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 pt-2">
           <div>
-            <div className="flex items-center gap-2 text-xs font-bold text-[#1E3A8A] mb-1">
-              <span className="w-2 h-2 rounded-full bg-[#059669]" />
-              <span>Academic Instructor Console</span>
-            </div>
-            <h1 className="text-2xl font-extrabold text-[#0F172A] font-heading">
+            <p className="font-[family-name:var(--font-tiro-deva)] text-sindoor text-lg leading-none mb-1" lang="hi">नमस्ते</p>
+            <h1 className="text-3xl sm:text-4xl font-normal tracking-tight">
               {teacher?.name ?? "\u00a0"}
             </h1>
-            <p className="text-xs text-[#64748B]">
-              {teacher ? [teacher.institution, teacher.department].filter(Boolean).join(" • ") || teacher.email : "\u00a0"}
+            <p className="text-sm text-ink-3 mt-1 flex flex-wrap items-center gap-x-3">
+              <span>{teacher ? [teacher.institution, teacher.department].filter(Boolean).join(" · ") || teacher.email : "\u00a0"}</span>
+              {teacher && (
+                <button onClick={signOut} className="font-semibold text-ink-3 hover:text-sindoor inline-flex items-center gap-1">
+                  <LogOut className="w-3.5 h-3.5" />
+                  Sign out
+                </button>
+              )}
             </p>
-            {teacher && (
-              <button onClick={signOut} className="mt-1 text-xs font-bold text-[#64748B] hover:text-[#DC2626] flex items-center gap-1">
-                <LogOut className="w-3.5 h-3.5" />
-                Sign out
-              </button>
-            )}
           </div>
 
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="h-12 px-5 rounded-2xl bg-[#1E3A8A] hover:bg-[#00236F] text-white font-bold text-sm flex items-center gap-2 shadow-sm transition active:scale-95"
-          >
+          <button onClick={() => setShowCreateModal(true)} className="cc-btn cc-btn-primary h-11 px-5 text-sm">
             <Plus className="w-4 h-4" />
-            <span>Create Classroom</span>
+            <span>New classroom</span>
           </button>
         </section>
 
         {/* Classrooms List */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-[#0F172A] font-heading">
-              Your Active Classrooms
-            </h2>
-            <span className="text-xs font-semibold text-[#64748B]">
-              {classrooms.length} Classrooms
-            </span>
+            <h2 className="cc-eyebrow">Your classrooms</h2>
+            <span className="text-xs font-mono text-ink-3">{classrooms.length}</span>
           </div>
 
           {error && (
-            <p className="text-xs text-[#DC2626] font-semibold">{error}</p>
+            <p className="text-xs text-sindoor font-semibold">{error}</p>
           )}
 
           {classrooms.length === 0 && !error && (
-            <div className="bg-white rounded-3xl border border-dashed border-[#CBD5E1] p-6 text-center text-sm text-[#475569]">
+            <div className="rounded-card border border-dashed border-rule-strong p-6 text-center text-sm text-ink-2 cc-kolam">
               No classrooms yet. Create one to get a PIN your students can join with.
             </div>
           )}
@@ -270,51 +255,49 @@ export default function TeacherDashboardPage() {
             {classrooms.map((room) => (
               <div
                 key={room.id}
-                className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-xs hover:border-[#94A3B8] transition"
+                className="cc-card p-6"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="px-2.5 py-0.5 rounded-md bg-[#EFF6FF] text-[#1E40AF] font-bold text-xs">
+                      <span className="cc-stamp text-neel">
                         {room.subject_code || "CLASS"}
                       </span>
-                      <span className="text-xs font-mono font-bold bg-[#FEF3C7] text-[#92400E] px-2 py-0.5 rounded-md">
+                      <span className="cc-stamp text-haldi-deep">
                         PIN: {room.join_code}
                       </span>
                     </div>
-                    <h3 className="text-lg font-bold text-[#0F172A] font-heading">
-                      {room.name}
-                    </h3>
-                    <p className="text-xs text-[#475569]">
-                      {room.room || "Classroom"} • Default STT: {sttLabel(room.default_source_language)}
+                    <h3 className="text-2xl font-normal leading-tight">{room.name}</h3>
+                    <p className="text-xs text-ink-2">
+                      {room.room || "Classroom"} · Teacher speaks {sttLabel(room.default_source_language)}
                     </p>
                   </div>
 
                   {room.live_class ? (
                     <Link
                       href={`/teacher/live/${room.live_class.id}`}
-                      className="h-12 px-6 rounded-2xl bg-[#059669] hover:bg-[#047857] text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-sm transition active:scale-95"
+                      className="cc-btn cc-btn-sindoor h-12 px-6 text-sm"
                     >
                       <Radio className="w-4 h-4 animate-pulse" />
-                      <span>Resume Live Class</span>
+                      <span>Resume live class</span>
                     </Link>
                   ) : (
                     <button
                       onClick={() => handleStartLiveClass(room.id, `${room.name} - Live Lecture`)}
                       disabled={startingId === room.id}
-                      className="h-12 px-6 rounded-2xl bg-[#059669] hover:bg-[#047857] text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-sm transition active:scale-95 disabled:opacity-60"
+                      className="cc-btn cc-btn-sindoor h-12 px-6 text-sm"
                     >
                       <Radio className="w-4 h-4 animate-pulse" />
-                      <span>{startingId === room.id ? "Starting..." : "Start Live Class"}</span>
+                      <span>{startingId === room.id ? "Starting..." : "Start live class"}</span>
                     </button>
                   )}
                 </div>
 
-                <div className="pt-3 border-t border-[#E2E8F0] flex flex-wrap items-center justify-between gap-2 text-xs text-[#64748B]">
+                <div className="pt-3 border-t border-rule flex flex-wrap items-center justify-between gap-2 text-xs text-ink-3">
                   <span className="flex items-center gap-1.5 font-medium">
-                    <Video className="w-3.5 h-3.5 text-[#1E3A8A]" />
-                    {room.lecture_count} Recorded Lecture{room.lecture_count === 1 ? "" : "s"}
-                    {room.live_class && <span className="text-[#059669] font-bold"> • Live now</span>}
+                    <Video className="w-3.5 h-3.5 text-neel" />
+                    {room.lecture_count} recorded lecture{room.lecture_count === 1 ? "" : "s"}
+                    {room.live_class && <span className="text-sindoor font-semibold"> · Live now</span>}
                   </span>
 
                   <div className="flex items-center gap-3">
@@ -323,24 +306,24 @@ export default function TeacherDashboardPage() {
                         setWordsRoom(room);
                         setWordsText(room.glossary ?? "");
                       }}
-                      className="font-bold text-[#1E3A8A] hover:underline flex items-center gap-1"
+                      className="font-semibold text-ink-2 hover:text-neel flex items-center gap-1"
                     >
                       <BookA className="w-3.5 h-3.5" />
-                      Word List{room.glossary ? ` (${room.glossary.split("\n").filter(Boolean).length})` : ""}
+                      Word list{room.glossary ? ` (${room.glossary.split("\n").filter(Boolean).length})` : ""}
                     </button>
                     <button
                       onClick={() => setUploadRoom(room)}
-                      className="font-bold text-[#1E3A8A] hover:underline flex items-center gap-1"
+                      className="font-semibold text-ink-2 hover:text-neel flex items-center gap-1"
                     >
                       <Upload className="w-3.5 h-3.5" />
-                      Upload Recording
+                      Upload recording
                     </button>
                     <button
                       onClick={() => setQrRoom(room)}
-                      className="font-bold text-[#1E3A8A] hover:underline flex items-center gap-1"
+                      className="font-semibold text-ink-2 hover:text-neel flex items-center gap-1"
                     >
                       <QrCode className="w-3.5 h-3.5" />
-                      Join QR &amp; PIN
+                      QR &amp; PIN
                     </button>
                   </div>
                 </div>
@@ -352,12 +335,10 @@ export default function TeacherDashboardPage() {
         {/* Recorded Lectures (uploads + ended live classes) */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-[#0F172A] font-heading">
-              Recorded Lectures
-            </h2>
+            <h2 className="cc-eyebrow">Recorded lectures</h2>
             <button
               onClick={() => setUploadRoom(null)}
-              className="text-xs font-bold text-[#1E3A8A] hover:underline flex items-center gap-1"
+              className="text-xs font-semibold text-ink-2 hover:text-neel flex items-center gap-1"
             >
               <Upload className="w-3.5 h-3.5" />
               Upload Audio / Video
@@ -365,7 +346,7 @@ export default function TeacherDashboardPage() {
           </div>
 
           {lectures.length === 0 && (
-            <div className="bg-white rounded-3xl border border-dashed border-[#CBD5E1] p-6 text-center text-sm text-[#475569]">
+            <div className="rounded-card border border-dashed border-rule-strong p-6 text-center text-sm text-ink-2 cc-kolam">
               Ended live classes and uploaded recordings appear here with subtitles, AI notes and a quiz.
             </div>
           )}
@@ -375,32 +356,28 @@ export default function TeacherDashboardPage() {
               <Link
                 key={lec.id}
                 href={`/student/lectures/${lec.id}`}
-                className="bg-white rounded-3xl border border-[#E2E8F0] p-5 shadow-xs hover:border-[#94A3B8] transition flex items-center justify-between gap-3"
+                className="cc-card p-5 hover:border-rule-strong transition flex items-center justify-between gap-3 group"
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="px-2.5 py-0.5 rounded-md bg-[#EFF6FF] text-[#1E40AF] font-bold text-xs">
+                    <span className="cc-stamp text-neel">
                       {lec.classroom?.subject_code || (lec.source === "live" ? "LIVE" : "UPLOAD")}
                     </span>
                     <span
-                      className={`px-2 py-0.5 rounded-md text-xs font-bold ${
-                        lec.status === "ready"
-                          ? "bg-[#ECFDF5] text-[#065F46]"
-                          : lec.status === "failed"
-                          ? "bg-[#FEF2F2] text-[#DC2626]"
-                          : "bg-[#FEF3C7] text-[#92400E]"
+                      className={`cc-stamp ${
+                        lec.status === "ready" ? "text-patta" : lec.status === "failed" ? "text-sindoor" : "text-haldi-deep"
                       }`}
                     >
                       {lec.status === "ready" ? "Ready" : lec.status === "failed" ? "Failed" : `${lec.status} ${lec.progress ?? 0}%`}
                     </span>
                   </div>
-                  <h3 className="text-sm font-bold text-[#0F172A] font-heading truncate">{lec.title}</h3>
-                  <p className="text-xs text-[#64748B]">
+                  <h3 className="text-[15px] font-semibold truncate">{lec.title}</h3>
+                  <p className="text-xs text-ink-3">
                     {new Date(lec.created_at).toLocaleString()} {lec.duration_s ? `• ${mmss(lec.duration_s)}` : ""}
                     {lec.error ? ` • ${lec.error.slice(0, 80)}` : ""}
                   </p>
                 </div>
-                <ArrowRight className="w-4 h-4 text-[#1E3A8A] flex-shrink-0" />
+                <ArrowRight className="w-4 h-4 text-ink-3 group-hover:text-neel group-hover:translate-x-0.5 transition flex-shrink-0" />
               </Link>
             ))}
           </div>
@@ -423,15 +400,13 @@ export default function TeacherDashboardPage() {
 
       {/* Create Classroom Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl border border-[#CBD5E1] p-6 max-w-md w-full shadow-2xl space-y-4">
-            <h3 className="text-xl font-bold text-[#0F172A] font-heading">
-              Create New Classroom
-            </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40">
+          <div className="cc-card p-6 max-w-md w-full space-y-4">
+            <h3 className="text-2xl font-normal">New classroom</h3>
 
             <form onSubmit={handleCreateClassroom} className="space-y-3">
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-[#475569] block mb-1">
+                <label className="cc-eyebrow block mb-1.5">
                   Classroom Name
                 </label>
                 <input
@@ -440,13 +415,13 @@ export default function TeacherDashboardPage() {
                   onChange={(e) => setNewRoomName(e.target.value)}
                   required
                   placeholder="e.g. Data Structures & Algorithms"
-                  className="w-full h-11 px-3 rounded-xl border border-[#CBD5E1] bg-white text-sm"
+                  className="cc-input w-full h-11 px-3 text-sm"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#475569] block mb-1">
+                  <label className="cc-eyebrow block mb-1.5">
                     Course Code
                   </label>
                   <input
@@ -454,11 +429,11 @@ export default function TeacherDashboardPage() {
                     value={newSubjectCode}
                     onChange={(e) => setNewSubjectCode(e.target.value)}
                     placeholder="e.g. CS302"
-                    className="w-full h-11 px-3 rounded-xl border border-[#CBD5E1] bg-white text-sm"
+                    className="cc-input w-full h-11 px-3 text-sm"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#475569] block mb-1">
+                  <label className="cc-eyebrow block mb-1.5">
                     Hall / Room
                   </label>
                   <input
@@ -466,19 +441,19 @@ export default function TeacherDashboardPage() {
                     value={newRoomVenue}
                     onChange={(e) => setNewRoomVenue(e.target.value)}
                     placeholder="e.g. LH-304"
-                    className="w-full h-11 px-3 rounded-xl border border-[#CBD5E1] bg-white text-sm"
+                    className="cc-input w-full h-11 px-3 text-sm"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-[#475569] block mb-1">
+                <label className="cc-eyebrow block mb-1.5">
                   Teacher Speaks In
                 </label>
                 <select
                   value={newSourceLang}
                   onChange={(e) => setNewSourceLang(e.target.value)}
-                  className="w-full h-11 px-3 rounded-xl border border-[#CBD5E1] bg-white text-sm"
+                  className="cc-input w-full h-11 px-3 text-sm"
                 >
                   {SPEECH_LANGS.map((l) => (
                     <option key={l.code} value={l.code}>
@@ -489,31 +464,31 @@ export default function TeacherDashboardPage() {
               </div>
 
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-[#475569] block mb-1">
-                  Names &amp; Subject Terms <span className="normal-case font-medium text-[#94A3B8]">(optional)</span>
+                <label className="cc-eyebrow block mb-1.5">
+                  Names &amp; Subject Terms <span className="normal-case font-medium text-ink-4">(optional)</span>
                 </label>
                 <textarea
                   value={newGlossary}
                   onChange={(e) => setNewGlossary(e.target.value)}
                   rows={3}
                   placeholder={"One per line or comma-separated, e.g.\nDijkstra, AVL tree, Prof. Iyer, NPTEL"}
-                  className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] bg-white text-sm"
+                  className="cc-input w-full px-3 py-2 text-sm"
                 />
-                <p className="text-[11px] text-[#64748B] mt-1">Captions will always recognise and spell these correctly.</p>
+                <p className="text-[11px] text-ink-3 mt-1">Captions will always recognise and spell these correctly.</p>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E8F0]">
+              <div className="flex justify-end gap-2 pt-3 border-t border-rule">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="h-11 px-4 rounded-xl border border-[#E2E8F0] text-[#475569] font-bold text-xs"
+                  className="cc-btn h-11 px-4 text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="h-11 px-6 rounded-xl bg-[#1E3A8A] text-white font-bold text-xs"
+                  className="cc-btn cc-btn-primary h-11 px-6 text-xs"
                 >
                   {loading ? "Creating..." : "Save Classroom"}
                 </button>
@@ -525,11 +500,11 @@ export default function TeacherDashboardPage() {
 
       {/* Word List Modal */}
       {wordsRoom && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl border border-[#CBD5E1] p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40">
+          <div className="cc-card p-6 max-w-md w-full space-y-4">
             <div>
-              <h3 className="text-xl font-bold text-[#0F172A] font-heading">Word List</h3>
-              <p className="text-xs text-[#64748B]">
+              <h3 className="text-2xl font-normal">Word List</h3>
+              <p className="text-xs text-ink-3">
                 {wordsRoom.name} • Names, subject terms and abbreviations that captions should always get right, even with a strong accent.
                 Changes apply to the next caption, even during a live class.
               </p>
@@ -541,13 +516,13 @@ export default function TeacherDashboardPage() {
                 rows={7}
                 autoFocus
                 placeholder={"One per line or comma-separated, e.g.\nDijkstra\nAVL tree\nProf. Iyer\nNPTEL"}
-                className="w-full px-3 py-2 rounded-xl border border-[#CBD5E1] bg-white text-sm"
+                className="cc-input w-full px-3 py-2 text-sm"
               />
-              <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E8F0]">
-                <button type="button" onClick={() => setWordsRoom(null)} className="h-11 px-4 rounded-xl border border-[#E2E8F0] text-[#475569] font-bold text-xs">
+              <div className="flex justify-end gap-2 pt-3 border-t border-rule">
+                <button type="button" onClick={() => setWordsRoom(null)} className="cc-btn h-11 px-4 text-xs">
                   Cancel
                 </button>
-                <button type="submit" disabled={wordsSaving} className="h-11 px-6 rounded-xl bg-[#1E3A8A] text-white font-bold text-xs">
+                <button type="submit" disabled={wordsSaving} className="cc-btn cc-btn-primary h-11 px-6 text-xs">
                   {wordsSaving ? "Saving..." : "Save Word List"}
                 </button>
               </div>
@@ -558,20 +533,20 @@ export default function TeacherDashboardPage() {
 
       {/* Upload Recording Modal */}
       {uploadRoom !== undefined && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl border border-[#CBD5E1] p-6 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40">
+          <div className="cc-card p-6 max-w-md w-full space-y-4">
             <div>
-              <h3 className="text-xl font-bold text-[#0F172A] font-heading">
+              <h3 className="text-2xl font-normal">
                 Upload Recorded Lecture
               </h3>
-              <p className="text-xs text-[#64748B]">
+              <p className="text-xs text-ink-3">
                 {uploadRoom ? uploadRoom.name : "No classroom"} • Audio or video (MP3, M4A, WAV, MP4, WebM)
               </p>
             </div>
 
             <form onSubmit={handleUpload} className="space-y-3">
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-[#475569] block mb-1">
+                <label className="cc-eyebrow block mb-1.5">
                   Lecture Title
                 </label>
                 <input
@@ -579,12 +554,12 @@ export default function TeacherDashboardPage() {
                   value={uploadTitle}
                   onChange={(e) => setUploadTitle(e.target.value)}
                   placeholder="Lecture 14: Binary Trees"
-                  className="w-full h-11 px-3 rounded-xl border border-[#CBD5E1] bg-white text-sm"
+                  className="cc-input w-full h-11 px-3 text-sm"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-[#475569] block mb-1">
+                <label className="cc-eyebrow block mb-1.5">
                   Recording File
                 </label>
                 <input
@@ -592,31 +567,31 @@ export default function TeacherDashboardPage() {
                   accept="audio/*,video/*"
                   required
                   onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
-                  className="w-full text-sm text-[#475569] file:mr-3 file:h-10 file:px-4 file:rounded-xl file:border-0 file:bg-[#EFF6FF] file:text-[#1E3A8A] file:font-bold"
+                  className="w-full text-sm text-ink-2 file:mr-3 file:h-10 file:px-4 file:rounded-[10px] file:border-[1.5px] file:border-ink file:bg-card file:text-ink file:font-semibold"
                 />
               </div>
 
               {uploadStage && (
-                <div className="bg-[#ECFDF5] border border-[#A7F3D0] text-[#065F46] rounded-xl p-3 text-xs font-semibold">
+                <div className="bg-patta-wash border border-patta-line text-patta-deep rounded-xl p-3 text-xs font-semibold">
                   {uploadStage}
                 </div>
               )}
               {uploadError && (
-                <p className="text-xs text-[#DC2626] font-semibold">{uploadError}</p>
+                <p className="text-xs text-sindoor font-semibold">{uploadError}</p>
               )}
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E8F0]">
+              <div className="flex justify-end gap-2 pt-3 border-t border-rule">
                 <button
                   type="button"
                   onClick={closeUpload}
-                  className="h-11 px-4 rounded-xl border border-[#E2E8F0] text-[#475569] font-bold text-xs"
+                  className="cc-btn h-11 px-4 text-xs"
                 >
                   Close
                 </button>
                 {uploadedId && (
                   <Link
                     href={`/student/lectures/${uploadedId}`}
-                    className="h-11 px-4 rounded-xl border border-[#1E3A8A] text-[#1E3A8A] font-bold text-xs flex items-center"
+                    className="cc-btn h-11 px-4 text-xs"
                   >
                     Open Lecture Hub
                   </Link>
@@ -624,7 +599,7 @@ export default function TeacherDashboardPage() {
                 <button
                   type="submit"
                   disabled={!uploadFile || (!!uploadStage && !uploadStage.startsWith("Ready"))}
-                  className="h-11 px-6 rounded-xl bg-[#1E3A8A] text-white font-bold text-xs disabled:opacity-50"
+                  className="cc-btn cc-btn-primary h-11 px-6 text-xs"
                 >
                   {uploadStage && !uploadStage.startsWith("Ready") ? "Processing..." : "Upload & Process"}
                 </button>

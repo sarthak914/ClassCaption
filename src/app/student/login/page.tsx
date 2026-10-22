@@ -3,7 +3,8 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { GraduationCap, ArrowRight, BookOpen } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { Brand } from "@/components/brand/Brand";
 import { api, setPref } from "@/lib/client/api";
 
 /** Student sign-in / sign-up. An account keeps every classroom and past lecture on any device. */
@@ -36,31 +37,22 @@ function StudentLoginContent() {
     }
   };
 
-  const input = "w-full h-11 px-3 rounded-xl border border-[#CBD5E1] bg-white text-sm focus:border-[#1E3A8A] outline-none";
-  const label = "text-xs font-bold uppercase tracking-wider text-[#475569] block mb-1";
+  const input = "cc-input w-full h-11 px-3 text-[15px]";
+  const label = "cc-eyebrow block mb-1.5";
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-paper text-ink flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md space-y-5">
-        <Link href="/" className="flex items-center gap-3 justify-center">
-          <div className="w-10 h-10 rounded-2xl bg-[#1E3A8A] flex items-center justify-center text-white shadow-sm">
-            <GraduationCap className="w-6 h-6" />
-          </div>
-          <span className="font-extrabold text-xl tracking-tight font-heading">ClassCaption</span>
-        </Link>
+        <Brand className="justify-center" />
 
-        <form onSubmit={submit} className="bg-white rounded-3xl border border-[#E2E8F0] p-6 shadow-sm space-y-4">
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#EFF6FF] text-[#1E3A8A] flex items-center justify-center flex-shrink-0">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-extrabold font-heading">Student account</h1>
-              <p className="text-xs text-[#475569]">Your classes, past lectures, notes and quizzes on any phone or laptop.</p>
-            </div>
+        <form onSubmit={submit} className="cc-card p-6 sm:p-7 space-y-5">
+          <div>
+            <p className="font-[family-name:var(--font-tiro-deva)] text-sindoor text-lg leading-none mb-1" lang="hi">विद्यार्थी</p>
+            <h1 className="text-3xl font-normal">Student account</h1>
+            <p className="text-sm text-ink-3 mt-1">Your classes, past lectures, notes and quizzes on any phone or laptop.</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-[#F1F5F9]">
+          <div className="grid grid-cols-2 border-b border-rule">
             {(["login", "signup"] as const).map((m) => (
               <button
                 key={m}
@@ -69,7 +61,7 @@ function StudentLoginContent() {
                   setMode(m);
                   setError("");
                 }}
-                className={`h-9 rounded-lg text-xs font-bold transition ${mode === m ? "bg-white text-[#1E3A8A] shadow-xs" : "text-[#475569]"}`}
+                className={`h-10 -mb-px text-sm font-semibold border-b-2 transition ${mode === m ? "border-sindoor text-ink" : "border-transparent text-ink-3 hover:text-ink"}`}
               >
                 {m === "login" ? "Sign in" : "Create account"}
               </button>
@@ -108,23 +100,23 @@ function StudentLoginContent() {
             />
           </div>
 
-          {error && <p className="text-sm text-[#DC2626] font-semibold">{error}</p>}
+          {error && <p className="text-sm text-sindoor font-semibold">{error}</p>}
 
           <button
             type="submit"
             disabled={busy}
-            className="w-full h-12 rounded-2xl bg-[#1E3A8A] hover:bg-[#00236F] text-white font-extrabold text-sm flex items-center justify-center gap-2 disabled:opacity-60 transition active:scale-95"
+            className="cc-btn cc-btn-primary w-full h-12 text-[15px]"
           >
             {busy ? "Please wait..." : mode === "login" ? "Sign in" : "Create account"}
             <ArrowRight className="w-4 h-4" />
           </button>
           {mode === "signup" && (
-            <p className="text-[11px] text-[#64748B]">Classes you already joined on this device move into your account.</p>
+            <p className="text-xs text-ink-3">Classes you already joined on this device move into your account.</p>
           )}
         </form>
 
-        <p className="text-center text-xs text-[#64748B]">
-          Just want to join today&apos;s class? <Link href={`/join${pin ? `?pin=${pin}` : ""}`} className="font-bold text-[#1E3A8A] hover:underline">Join with the PIN</Link>
+        <p className="text-center text-sm text-ink-3">
+          Just want to join today&apos;s class? <Link href={`/join${pin ? `?pin=${pin}` : ""}`} className="font-semibold text-neel underline underline-offset-4 decoration-neel-line">Join with the PIN</Link>
         </p>
       </div>
     </div>
@@ -133,7 +125,7 @@ function StudentLoginContent() {
 
 export default function StudentLoginPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-sm text-[#475569]">Loading...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-sm text-ink-2">Loading...</div>}>
       <StudentLoginContent />
     </Suspense>
   );

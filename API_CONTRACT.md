@@ -192,9 +192,9 @@ English is generated automatically. Other languages are generated on first reque
 ### `POST /api/lectures/:id/ask` (Ask the lecture)
 Request: `{ "question": "binary search kis array par chalta hai?", "lang": "hi" }`
 
-Response: `{ "answer": "...", "found_in_lecture": true, "citations": [ { "idx": 3, "start_s": 84.2, "quote": "..." } ] }`
+Response: `{ "answer": "...", "found_in_lecture": true, "citations": [ { "idx": 3, "start_s": 84.2, "quote": "..." } ], "retrieval": { "method": "pgvector", "chunks": 6, "lines": 31 } }`
 
-Seek the player to `citations[0].start_s`.
+Seek the player to `citations[0].start_s`. `retrieval.method` is `pgvector` (only the best-matching passages were sent to the LLM) or `full_transcript` (no Gemini key or schema v5 not run). The first question on a lecture also embeds its transcript, so it takes a few seconds longer.
 
 ### `POST /api/board` (Board capture)
 A photo of the whiteboard, blackboard or a slide becomes text, equations and spoken descriptions of diagrams. This is for blind and deaf students, or for anyone revising later.
